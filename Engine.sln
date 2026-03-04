@@ -1,11 +1,10 @@
-﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
-VisualStudioVersion = 17.13.35818.85
+VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Engine", "Engine\Engine.csproj", "{64A92C0E-01B2-4402-9B58-41D60D8B5F12}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Physics2D.Core", "Physics2D.Core\Physics2D.Core.csproj", "{64A92C0E-01B2-4402-9B58-41D60D8B5F12}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EngineRunner", "EngineRunner\EngineRunner.csproj", "{239CF5EB-6D98-4A53-8FAD-C2AFE8E6E33F}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Physics2D.DemoConsole", "Physics2D.Core\DemoConsole\Physics2D.DemoConsole.csproj", "{239CF5EB-6D98-4A53-8FAD-C2AFE8E6E33F}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -24,8 +23,5 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
-	EndGlobalSection
-	GlobalSection(ExtensibilityGlobals) = postSolution
-		SolutionGuid = {16468153-FA14-49E0-88FA-666EA3924158}
 	EndGlobalSection
 EndGlobal
