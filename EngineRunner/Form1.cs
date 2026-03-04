@@ -54,7 +54,7 @@ namespace EngineRunner
                 Brushes.Red,
                 body.Position.X,
                 body.Position.Y,
-                5000,
+                20,
                 20
             );
         }
