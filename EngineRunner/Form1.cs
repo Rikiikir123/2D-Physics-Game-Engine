@@ -11,7 +11,7 @@ namespace EngineRunner
 {
     public partial class Form1 : Form
     {
-        private Rigidbody2D body;
+        private RRigidBody body;
         private System.Windows.Forms.Timer timer;
         private Stopwatch stopwatch;
 
@@ -21,8 +21,8 @@ namespace EngineRunner
 
             this.DoubleBuffered = true;
 
-            body = new Rigidbody2D(new Vector2(100, 100));
-            body.Velocity = new Vector2(1000, 0); // 1000 pixels per second
+            body = new RRigidBody(new RVector2(100, 100));
+            body.Velocity = new RVector2(1000, 0); // 1000 pixels per second
 
             stopwatch = new Stopwatch();
             stopwatch.Start();

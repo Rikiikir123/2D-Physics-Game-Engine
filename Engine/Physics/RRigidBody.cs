@@ -2,15 +2,15 @@
 
 namespace Engine.Physics
 {
-    public class Rigidbody2D
+    public class RRigidBody
     {
-        public Vector2 Position;
-        public Vector2 Velocity;
+        public RVector2 Position;
+        public RVector2 Velocity;
 
-        public Rigidbody2D(Vector2 position)
+        public RRigidBody(RVector2 position)
         {
             Position = position;
-            Velocity = Vector2.Zero;
+            Velocity = RVector2.Zero;
         }
 
         public void Update(float deltaTime)
