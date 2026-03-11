@@ -15,6 +15,8 @@ namespace EngineRunner
         private System.Windows.Forms.Timer timer;
         private Stopwatch stopwatch;
 
+        private float floorY;
+
         public Form1()
         {
             // initializes the form
@@ -23,8 +25,10 @@ namespace EngineRunner
             // reduces flickering when redrawing
             this.DoubleBuffered = true;
 
-            body = new RRigidBody(new RVector2(100, 100),true);
-            body.Velocity = new RVector2(500, 0); // 500 pixels per second
+            //Rigidbody (position, width, height, mass, useGravity)
+            body = new RRigidBody(new RVector2(100, 100), 20f, 20f, 1f, true);
+            body.Velocity = new RVector2(250, 0); // 500 pixels per second
+
 
             stopwatch = new Stopwatch();
             stopwatch.Start();
@@ -43,7 +47,9 @@ namespace EngineRunner
             float deltaTime = currentTime - lastTime;
             lastTime = currentTime;
 
-            body.Update(deltaTime);
+            floorY = this.ClientSize.Height;
+
+            body.Update(deltaTime, floorY);
 
             Invalidate(); // triggers redraw
         }
@@ -52,14 +58,22 @@ namespace EngineRunner
         {
             base.OnPaint(e);
 
-            
+            floorY = this.ClientSize.Height;
 
             e.Graphics.FillEllipse(
                 Brushes.Red,
                 body.Position.X,
                 body.Position.Y,
-                20,
-                20
+                body.Width,
+                body.Height
+            );
+
+            e.Graphics.DrawLine(
+             Pens.Black,
+             0,
+             floorY,
+             this.ClientSize.Width,
+             floorY
             );
         }
     }
