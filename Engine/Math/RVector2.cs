@@ -19,10 +19,18 @@ namespace Engine.Math
         {
             return new RVector2(a.X + b.X, a.Y + b.Y);
         }
+        public static RVector2 operator -(RVector2 a, RVector2 b)
+        {
+            return new RVector2(a.X - b.X, a.Y - b.Y);
+        }
 
         public static RVector2 operator *(RVector2 v, float scalar)
         {
             return new RVector2(v.X * scalar, v.Y * scalar);
+        }
+        public static RVector2 operator /(RVector2 v, float scalar)
+        {
+            return new RVector2(v.X / scalar, v.Y / scalar);
         }
 
     }

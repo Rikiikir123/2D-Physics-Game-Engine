@@ -17,12 +17,14 @@ namespace EngineRunner
 
         public Form1()
         {
+            // initializes the form
             InitializeComponent();
 
+            // reduces flickering when redrawing
             this.DoubleBuffered = true;
 
-            body = new RRigidBody(new RVector2(100, 100));
-            body.Velocity = new RVector2(1000, 0); // 1000 pixels per second
+            body = new RRigidBody(new RVector2(100, 100),true);
+            body.Velocity = new RVector2(500, 0); // 500 pixels per second
 
             stopwatch = new Stopwatch();
             stopwatch.Start();
@@ -49,6 +51,8 @@ namespace EngineRunner
         protected override void OnPaint(PaintEventArgs e)
         {
             base.OnPaint(e);
+
+            
 
             e.Graphics.FillEllipse(
                 Brushes.Red,
