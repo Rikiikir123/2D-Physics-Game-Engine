@@ -35,17 +35,38 @@ namespace Engine.Physics
 
         }
 
-        public void Update(float deltaTime, float floorY)
+        public void Update(float deltaTime, float floorY, float clientWidth)
         {
             Velocity += Gravity * deltaTime;      //gravity gradually increases
             Position += Velocity * deltaTime;
             
-            
+            // floor boundary
             if (Position.Y + Height >= floorY)
             {
-                Position.Y = floorY - Height;
-                Velocity.Y = -Velocity.Y * 0.5f;
-                Velocity.X *= 0.5f;
+                Position.Y = floorY - Height;   
+                Velocity.Y *= -0.5f;
+                Velocity.X *=  0.5f;
+            }
+
+            // right wall boundary
+            if (Position.X + Height >= clientWidth)
+            {
+                Position.X = clientWidth - Height;  
+                Velocity.X *= -0.5f;
+            }
+
+            // left wall boundary
+            if (Position.X <= 0f)
+            {
+                Position.X = 0f + Height;
+                Velocity.X *= -0.5f;
+            }
+
+            // roof boundary
+            if (Position.Y <= 0f)
+            {
+                Position.Y = 0f + Height;
+                Velocity.Y *= -1f;
             }
         }
     }

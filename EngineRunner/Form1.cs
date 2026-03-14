@@ -16,6 +16,7 @@ namespace EngineRunner
         private Stopwatch stopwatch;
 
         private float floorY;
+        private float clientWidth;
 
         public Form1()
         {
@@ -26,8 +27,8 @@ namespace EngineRunner
             this.DoubleBuffered = true;
 
             //Rigidbody (position, width, height, mass, useGravity)
-            body = new RRigidBody(new RVector2(100, 100), 20f, 20f, 1f, true);
-            body.Velocity = new RVector2(250, 0); // 500 pixels per second
+            body = new RRigidBody(new RVector2(200, 200), 20f, 20f, 1f, true);
+            body.Velocity = new RVector2(0, -1000); // (x,y) pixels per second
 
 
             stopwatch = new Stopwatch();
@@ -48,8 +49,9 @@ namespace EngineRunner
             lastTime = currentTime;
 
             floorY = this.ClientSize.Height;
+            clientWidth = this.ClientSize.Width;
 
-            body.Update(deltaTime, floorY);
+            body.Update(deltaTime, floorY, clientWidth);
 
             Invalidate(); // triggers redraw
         }
@@ -58,7 +60,7 @@ namespace EngineRunner
         {
             base.OnPaint(e);
 
-            floorY = this.ClientSize.Height;
+           
 
             e.Graphics.FillEllipse(
                 Brushes.Red,
@@ -68,13 +70,7 @@ namespace EngineRunner
                 body.Height
             );
 
-            e.Graphics.DrawLine(
-             Pens.Black,
-             0,
-             floorY,
-             this.ClientSize.Width,
-             floorY
-            );
+            
         }
     }
 }
