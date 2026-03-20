@@ -30,8 +30,8 @@ namespace EngineRunner
             this.DoubleBuffered = true;
 
             //Rigidbody (position, width, height, mass, useGravity)
-            body = new RRigidBody(new RVector2(200, 200), 20f, 20f, 1f, true);
-            body.Velocity = new RVector2(20000, 200000);          // direction toward (x,y) pixels per second
+            body = new RRigidBody(new RVector2(250, 400), 20f, 20f, 1f, true);
+            body.Velocity = new RVector2(0f, -600f);          // direction toward (x,y) pixels per second
             
             //RAABB (left, right, top, bottom)
             platform = new RAABB(150f, 350f, 250f, 270f);    
@@ -59,13 +59,11 @@ namespace EngineRunner
             body.Update(deltaTime, clientHeight, clientWidth);
 
             // check if ball collides with platform
-            if (body.Bounds.Intersects(platform) && body.Velocity.Y > 0)
+            if (body.Bounds.Intersects(platform))
             {
-                body.Position.Y = platform.Top - body.Height;
-                body.Velocity.Y *= -0.5f;
-                //CURRENTLY JUST EXPECTS THE BALL TO FALL FROM THE TOP
-                //TODO: MAKE THE ENGINE REMEMBER WHERE THE OBJECT CAME FROM 
-                //BEFORE THE COLLISION HAPPENED
+               // resolve which way the ball needs to be pushed away
+                ResolveCollision(body, platform);
+                
             }
 
             Invalidate(); // triggers redraw
@@ -94,6 +92,48 @@ namespace EngineRunner
             );
 
 
+        }
+
+        private void ResolveCollision(RRigidBody body, RAABB platform)
+        {
+            RAABB b = body.Bounds;
+
+            float overlapLeft = b.Right - platform.Left;
+            float overlapRight = platform.Right - b.Left;
+            float overlapTop = b.Bottom - platform.Top;
+            float overlapBottom = platform.Bottom - b.Top;
+
+            float minOverlapX = System.Math.Min(overlapLeft, overlapRight);
+            float minOverlapY = System.Math.Min(overlapTop, overlapBottom);
+
+            if (minOverlapX < minOverlapY)
+            {
+                // resolve horizontally
+                if (overlapLeft < overlapRight)
+                {
+                    body.Position.X -= overlapLeft;
+                }
+                else
+                {
+                    body.Position.X += overlapRight;
+                }
+
+                body.Velocity.X *= -0.5f;
+            }
+            else
+            {
+                // resolve vertically
+                if (overlapTop < overlapBottom)
+                {
+                    body.Position.Y -= overlapTop;
+                }
+                else
+                {
+                    body.Position.Y += overlapBottom;
+                }
+
+                body.Velocity.Y *= -0.5f;
+            }
         }
     }
 }
