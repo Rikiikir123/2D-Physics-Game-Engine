@@ -5,17 +5,19 @@ namespace Engine.Physics
     public class RRigidBody
     {
         public RVector2 Position;
+        public float Width;
+        public float Height;
+
         public RVector2 Velocity;
         public RVector2 Gravity;
         public float Mass;
 
-        public float Width;
-        public float Height;
         //NOT IMPLEMENTED 
         //public float gravityScale;
 
 
-        
+
+
 
         public RRigidBody(RVector2 position, float width, float height, float mass, bool useGravity)
         {
@@ -35,15 +37,27 @@ namespace Engine.Physics
 
         }
 
-        public void Update(float deltaTime, float floorY, float clientWidth)
+
+
+        //RAABB (left, right, top, bottom)
+        public RAABB Bounds => new RAABB
+                (
+                    Position.X,
+                    Position.X + Width,
+                    Position.Y,
+                    Position.Y + Height
+                );
+
+
+        public void Update(float deltaTime, float clientHeight, float clientWidth)
         {
             Velocity += Gravity * deltaTime;      //gravity gradually increases
             Position += Velocity * deltaTime;
             
             // floor boundary
-            if (Position.Y + Height >= floorY)
+            if (Position.Y + Height >= clientHeight)
             {
-                Position.Y = floorY - Height;   
+                Position.Y = clientHeight - Height;   
                 Velocity.Y *= -0.5f;
                 Velocity.X *=  0.5f;
             }
@@ -66,7 +80,7 @@ namespace Engine.Physics
             if (Position.Y <= 0f)
             {
                 Position.Y = 0f + Height;
-                Velocity.Y *= -1f;
+                Velocity.Y *= -0.5f;
             }
         }
     }
