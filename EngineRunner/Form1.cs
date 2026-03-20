@@ -11,6 +11,9 @@ namespace EngineRunner
 {
     public partial class Form1 : Form
     {
+        private const float FixedDeltaTime = 1f / 120f; // 120 physics steps/sec
+        private float accumulator = 0f;                 
+
         private RRigidBody body;
 
         private System.Windows.Forms.Timer timer;
@@ -30,8 +33,8 @@ namespace EngineRunner
             this.DoubleBuffered = true;
 
             //Rigidbody (position, width, height, mass, useGravity)
-            body = new RRigidBody(new RVector2(250, 400), 20f, 20f, 1f, true);
-            body.Velocity = new RVector2(0f, -600f);          // direction toward (x,y) pixels per second
+            body = new RRigidBody(new RVector2(400, 400), 20f, 20f, 1f, true);
+            body.Velocity = new RVector2(-75000f, -7500f);          // direction toward (x,y) pixels per second
             
             //RAABB (left, right, top, bottom)
             platform = new RAABB(150f, 350f, 250f, 270f);    
@@ -49,24 +52,35 @@ namespace EngineRunner
 
         private void GameLoop(object sender, EventArgs e)
         {
-            float currentTime = stopwatch.ElapsedMilliseconds / 1000f;
-            float deltaTime = currentTime - lastTime;
+            float currentTime = stopwatch.ElapsedMilliseconds / 1000f;  //sec
+            float deltaTime = currentTime - lastTime;                   //
             lastTime = currentTime;
+
+            // clamp huge spikes (if a frame took too long act like it didn't)
+            if (deltaTime > 0.05f)
+            {
+                deltaTime = 0.05f;
+            }
+
+            accumulator += deltaTime;
+
 
             clientHeight = this.ClientSize.Height;
             clientWidth = this.ClientSize.Width;
 
-            body.Update(deltaTime, clientHeight, clientWidth);
-
-            // check if ball collides with platform
-            if (body.Bounds.Intersects(platform))
+            while (accumulator >= FixedDeltaTime)                          
             {
-               // resolve which way the ball needs to be pushed away
-                ResolveCollision(body, platform);
-                
+                body.Update(FixedDeltaTime, clientHeight, clientWidth);    // runs one fixed physics step
+
+                if (body.Bounds.Intersects(platform))
+                {
+                    ResolveCollision(body, platform);
+                }
+
+                accumulator -= FixedDeltaTime;      //.. then subtract one fixed physics step time from the time accuum
             }
 
-            Invalidate(); // triggers redraw
+            Invalidate();
         }
 
         protected override void OnPaint(PaintEventArgs e)
