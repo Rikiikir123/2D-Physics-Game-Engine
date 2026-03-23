@@ -1,6 +1,6 @@
 ﻿using Engine.Math;
 
-namespace Engine.Physics
+namespace Engine.Physics.Bodies
 {
     public class RRigidBody
     {
