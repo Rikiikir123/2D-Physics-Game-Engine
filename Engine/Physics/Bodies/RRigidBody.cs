@@ -12,11 +12,7 @@ namespace Engine.Physics.Bodies
         public RVector2 Gravity;
         public float Mass;
 
-        //NOT IMPLEMENTED 
-        //public float gravityScale;
-
-
-
+        
 
 
         public RRigidBody(RVector2 position, float width, float height, float mass, bool useGravity)
@@ -49,39 +45,10 @@ namespace Engine.Physics.Bodies
                 );
 
 
-        public void Update(float deltaTime, float clientHeight, float clientWidth)
+        public void Update(float deltaTime)
         {
             Velocity += Gravity * deltaTime;      //gravity gradually increases
             Position += Velocity * deltaTime;
-            
-            // floor boundary
-            if (Position.Y + Height >= clientHeight)
-            {
-                Position.Y = clientHeight - Height;   
-                Velocity.Y *= -0.5f;
-                Velocity.X *=  0.5f;
-            }
-
-            // right wall boundary
-            if (Position.X + Height >= clientWidth)
-            {
-                Position.X = clientWidth - Height;  
-                Velocity.X *= -0.5f;
-            }
-
-            // left wall boundary
-            if (Position.X <= 0f)
-            {
-                Position.X = 0f + Height;
-                Velocity.X *= -0.5f;
-            }
-
-            // roof boundary
-            if (Position.Y <= 0f)
-            {
-                Position.Y = 0f + Height;
-                Velocity.Y *= -0.5f;
-            }
         }
     }
 }

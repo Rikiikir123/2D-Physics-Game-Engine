@@ -8,21 +8,29 @@ namespace Engine.Physics.World
     {
         public List<RRigidBody> Bodies = new();
         public List<RAABB> StaticColliders = new();
+        public List<RAABB> BoundaryColliders = new();
 
-        
+
 
 
         // one physics step
-        public void Step(float deltaTime, float width, float height)
+        public void Step(float deltaTime)
         {
             foreach (var body in Bodies)
             {
-                body.Update(deltaTime, height, width);
+                body.Update(deltaTime);
             }
 
             foreach (var body in Bodies)
             {
                 foreach (var collider in StaticColliders)
+                {
+                    if (body.Bounds.Intersects(collider))
+                    {
+                        ResolveCollision(body, collider);
+                    }
+                }
+                foreach (var collider in BoundaryColliders)
                 {
                     if (body.Bounds.Intersects(collider))
                     {
@@ -78,7 +86,16 @@ namespace Engine.Physics.World
                 body.Velocity.Y *= -0.5f;
             }
         }
-
+        
+        // add screen bounds to the static colliders
+        public void updateBounds(float clientHeight, float clientWidth)
+        {
+            BoundaryColliders.Clear();
+            BoundaryColliders.Add(new RAABB(0f, clientWidth, clientHeight, clientHeight+500f));    //floor
+            BoundaryColliders.Add(new RAABB(0f, clientWidth, -500f, 0f));    //ceiling
+            BoundaryColliders.Add(new RAABB(-500f, 0f, 0f, clientHeight));    //left wall
+            BoundaryColliders.Add(new RAABB(clientWidth, clientWidth+500f, 0f, clientHeight));    //right wall
+        }
 
 
     }

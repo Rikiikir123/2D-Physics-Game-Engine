@@ -84,11 +84,13 @@ namespace EngineRunner
 
             clientHeight = this.ClientSize.Height;
             clientWidth = this.ClientSize.Width;
+            
 
             while (accumulator >= FixedDeltaTime)                          
             {
-                world.Step(FixedDeltaTime, clientWidth, clientHeight);    // runs one fixed physics step
-                accumulator -= FixedDeltaTime;                           //.. then subtract one fixed physics step time from the time accuum
+                world.updateBounds(clientHeight, clientWidth);
+                world.Step(FixedDeltaTime);    // runs one fixed physics step
+                accumulator -= FixedDeltaTime;                           //.. then subtract one fixed physics step time from the time 
             }
 
             Invalidate();
@@ -97,7 +99,7 @@ namespace EngineRunner
         // draw the world
         protected override void OnPaint(PaintEventArgs e)
         {
-            base.OnPaint(e);
+           base.OnPaint(e);
 
            foreach (RRigidBody body in world.Bodies)
             {
