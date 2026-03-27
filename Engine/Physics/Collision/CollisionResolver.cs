@@ -5,8 +5,13 @@ namespace Engine.Physics.Collision
 	public class CollisionResolver
 	{
         // handles collision between two objects 
-        private void ResolveCollision(RRigidBody body, RAABB platform)
+        public static void ResolveCollision(RRigidBody body, RAABB platform)
         {
+            if (body.IsStatic)
+            {
+                return;
+            }
+
             RAABB b = body.Bounds;
 
             float overlapLeft = b.Right - platform.Left;
@@ -29,21 +34,50 @@ namespace Engine.Physics.Collision
                     body.Position.X += overlapRight;
                 }
 
-                body.Velocity.X *= -0.5f;
+                body.Velocity.X *= -body.Restitution;
             }
             else
             {
-                // resolve vertically
+                // vertical collision
                 if (overlapTop < overlapBottom)
                 {
+                    // landed on top of platform
                     body.Position.Y -= overlapTop;
+
+                    if (body.Velocity.Y > 0f)
+                    {
+                        if (System.Math.Abs(body.Velocity.Y) < 30f)
+                        {
+                            body.Velocity.Y = 0f;
+                            body.IsGrounded = true;
+                        }
+                        else
+                        {
+                            body.Velocity.Y *= -body.Restitution;
+                        }
+                    }
                 }
                 else
                 {
+                    // hit underside
                     body.Position.Y += overlapBottom;
-                }
 
-                body.Velocity.Y *= -0.5f;
+                    if (body.Velocity.Y < 0f)
+                    {
+                        body.Velocity.Y *= -body.Restitution;
+                    }
+                }
+            }
+            if (body.IsGrounded)
+            {
+                // if body is grounded apply friction
+                body.Velocity.X *= body.Friction;
+
+                // if velocity too small, set it to 0
+                if (System.Math.Abs(body.Velocity.X) < 1f)
+                {
+                    body.Velocity.X = 0f;
+                }
             }
         }
     }
