@@ -8,24 +8,33 @@ namespace Engine.Physics.Bodies
         public float Width;
         public float Height;
 
+        public bool IsStatic;
+        public bool IsGrounded;
+
         public RVector2 Velocity;
         public RVector2 Gravity;
         public float Mass;
 
-        //NOT IMPLEMENTED 
-        //public float gravityScale;
+        public float Restitution;
+        public float Friction;
+
+        
 
 
 
-
-
-        public RRigidBody(RVector2 position, float width, float height, float mass, bool useGravity)
+        public RRigidBody(RVector2 position, float width, float height, float mass, bool isStatic, bool useGravity)
         {
             Position = position;
             Velocity = RVector2.Zero;
             Mass = mass;
             Width = width;
             Height = height;
+            IsStatic = isStatic;
+            IsGrounded = false;
+
+            Restitution = 0.5f;
+            Friction = 0.99f;
+
 
             // check if we want to use gravity
             if (useGravity)
@@ -49,39 +58,15 @@ namespace Engine.Physics.Bodies
                 );
 
 
-        public void Update(float deltaTime, float clientHeight, float clientWidth)
+        public void Update(float deltaTime)
         {
+            if (IsStatic)
+            {
+                return;
+            }
+
             Velocity += Gravity * deltaTime;      //gravity gradually increases
             Position += Velocity * deltaTime;
-            
-            // floor boundary
-            if (Position.Y + Height >= clientHeight)
-            {
-                Position.Y = clientHeight - Height;   
-                Velocity.Y *= -0.5f;
-                Velocity.X *=  0.5f;
-            }
-
-            // right wall boundary
-            if (Position.X + Height >= clientWidth)
-            {
-                Position.X = clientWidth - Height;  
-                Velocity.X *= -0.5f;
-            }
-
-            // left wall boundary
-            if (Position.X <= 0f)
-            {
-                Position.X = 0f + Height;
-                Velocity.X *= -0.5f;
-            }
-
-            // roof boundary
-            if (Position.Y <= 0f)
-            {
-                Position.Y = 0f + Height;
-                Velocity.Y *= -0.5f;
-            }
         }
     }
 }

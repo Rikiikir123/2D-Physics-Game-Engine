@@ -33,8 +33,8 @@ namespace EngineRunner
 
             world = new PhysicsWorld();
 
-            //Rigidbody (position, width, height, mass, useGravity)
-            RRigidBody body = new RRigidBody(new RVector2(500f, 400f), 20f, 20f, 1f, true);
+            //Rigidbody (position, width, height, mass, IsStatic, useGravity)
+            RRigidBody body = new RRigidBody(new RVector2(500f, 400f), 20f, 20f, 1f, false, true);
             body.Velocity = new RVector2(-100f, -500f);          // direction toward (x,y) pixels per second
             
             //RAABB (left, right, top, bottom)
@@ -51,11 +51,6 @@ namespace EngineRunner
             timer.Tick += GameLoop;
             timer.Start();
         }
-
-
-
-
-
 
 
 
@@ -84,11 +79,13 @@ namespace EngineRunner
 
             clientHeight = this.ClientSize.Height;
             clientWidth = this.ClientSize.Width;
+            
 
             while (accumulator >= FixedDeltaTime)                          
             {
-                world.Step(FixedDeltaTime, clientWidth, clientHeight);    // runs one fixed physics step
-                accumulator -= FixedDeltaTime;                           //.. then subtract one fixed physics step time from the time accuum
+                world.UpdateBounds(clientHeight, clientWidth);
+                world.Step(FixedDeltaTime);    // runs one fixed physics step
+                accumulator -= FixedDeltaTime;                           //.. then subtract one fixed physics step time from the time 
             }
 
             Invalidate();
@@ -97,7 +94,7 @@ namespace EngineRunner
         // draw the world
         protected override void OnPaint(PaintEventArgs e)
         {
-            base.OnPaint(e);
+           base.OnPaint(e);
 
            foreach (RRigidBody body in world.Bodies)
             {
@@ -120,10 +117,6 @@ namespace EngineRunner
                     collider.Bottom - collider.Top
                 );
             }
-
-
         }
-
-        
     }
 }
