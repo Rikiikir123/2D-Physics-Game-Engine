@@ -10,13 +10,17 @@ namespace Engine.Physics.World
         public List<RRigidBody> Bodies = new();
         public List<RAABB> StaticColliders = new();
         public List<RAABB> BoundaryColliders = new();
-
+        
 
 
 
         // one physics step
         public void Step(float deltaTime)
         {
+            foreach (var body in Bodies)
+            {
+                body.IsGrounded = false;
+            }
             foreach (var body in Bodies)
             {
                 body.Update(deltaTime);
