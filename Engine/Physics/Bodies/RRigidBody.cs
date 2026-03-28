@@ -11,6 +11,7 @@ namespace Engine.Physics.Bodies
         public bool IsStatic;
         public bool IsGrounded;
 
+        public RVector2 AccumulatedForce;
         public RVector2 Velocity;
         public RVector2 Gravity;
         public float Mass;
@@ -26,6 +27,7 @@ namespace Engine.Physics.Bodies
         {
             Position = position;
             Velocity = RVector2.Zero;
+            AccumulatedForce = RVector2.Zero;
             Mass = mass;
             Width = width;
             Height = height;
@@ -60,13 +62,40 @@ namespace Engine.Physics.Bodies
 
         public void Update(float deltaTime)
         {
-            if (IsStatic)
+            if (IsStatic || Mass <= 0f)
+            {
+                ClearForces();
+                return;
+            }
+
+            RVector2 acceleration = Gravity + (AccumulatedForce / Mass);
+            Velocity += acceleration * deltaTime;     //gravity gradually increases
+            Position += Velocity * deltaTime;
+            ClearForces();
+        }
+
+        public void ClearForces()
+        {
+            AccumulatedForce = RVector2.Zero;
+        }
+
+        public void AddForce(RVector2 force)
+        {
+            if (IsStatic || Mass <= 0f)
             {
                 return;
             }
 
-            Velocity += Gravity * deltaTime;      //gravity gradually increases
-            Position += Velocity * deltaTime;
+            AccumulatedForce += force;
+        }
+        public void AddImpulse(RVector2 impulse)
+        {
+            if (IsStatic || Mass <= 0f)
+            {
+                return;
+            }
+
+            Velocity += impulse / Mass;
         }
     }
 }

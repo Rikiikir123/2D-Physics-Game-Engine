@@ -34,8 +34,8 @@ namespace EngineRunner
             world = new PhysicsWorld();
 
             //Rigidbody (position, width, height, mass, IsStatic, useGravity)
-            RRigidBody body = new RRigidBody(new RVector2(500f, 400f), 20f, 20f, 1f, false, true);
-            body.Velocity = new RVector2(-1000f, -500000f);          // direction toward (x,y) pixels per second
+            RRigidBody body = new RRigidBody(new RVector2(500f, 400f), 20f, 20f, 1000f, false, true);
+            body.AddImpulse(new RVector2(-1000f, -500f));         // direction toward (x,y) pixels per second
 
 
             //RAABB (left, right, top, bottom)
