@@ -34,13 +34,19 @@ namespace EngineRunner
             world = new PhysicsWorld();
 
             //Rigidbody (position, width, height, mass, IsStatic, useGravity)
-            RRigidBody body = new RRigidBody(new RVector2(500f, 400f), 20f, 20f, 1000f, false, true);
-            body.AddImpulse(new RVector2(-1000f, -500f));         // direction toward (x,y) pixels per second
-
+            RRigidBody body = new RRigidBody(new RVector2(500f, 400f), 100f, 100f, 100f, false, true);
+            body.AddImpulse(new RVector2(-10010f, -50000f));         // direction toward (x,y) pixels per second
+            
+            RRigidBody body2 = new RRigidBody(new RVector2(100f, 100f), 50f, 50f, 10f, false, true);
+            body2.AddImpulse(new RVector2(-10000f, -50100f));
+            world.Bodies.Add(new RRigidBody(new RVector2(50f, 50f), 30f, 30f, 10f, false, true));
+            world.Bodies.Add(new RRigidBody(new RVector2(50f, 50f), 30f, 30f, 50f, false, true));
 
             //RAABB (left, right, top, bottom)
             RAABB platform = new RAABB(150f, 350f, 250f, 270f);
 
+            
+            world.Bodies.Add(body2);
             world.Bodies.Add(body);
             world.StaticColliders.Add(platform);
 
@@ -49,6 +55,7 @@ namespace EngineRunner
 
             timer = new System.Windows.Forms.Timer();
             timer.Interval = 16; // ~60 FPS
+            // run gameloop every timer tick
             timer.Tick += GameLoop;
             timer.Start();
         }
@@ -89,6 +96,7 @@ namespace EngineRunner
                 accumulator -= FixedDeltaTime;                           //.. then subtract one fixed physics step time from the time 
             }
 
+            // repaint
             Invalidate();
         }
 
@@ -100,7 +108,7 @@ namespace EngineRunner
            foreach (RRigidBody body in world.Bodies)
             {
                 e.Graphics.FillEllipse(
-                    Brushes.Red,
+                    Brushes.BlueViolet,
                     body.Position.X,
                     body.Position.Y,
                     body.Width,
