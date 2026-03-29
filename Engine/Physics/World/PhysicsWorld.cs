@@ -43,6 +43,19 @@ namespace Engine.Physics.World
                     }
                 }
             }
+            for (int i = 0; i < Bodies.Count; i++)
+            {
+                for (int j = i + 1; j < Bodies.Count; j++)
+                {
+                    var a = Bodies[i];
+                    var b = Bodies[j];
+
+                    if (a.Bounds.Intersects(b.Bounds))
+                    {
+                        CollisionResolver.ResolveDynamicCollision(a, b);
+                    }
+                }
+            }
         }
 
         

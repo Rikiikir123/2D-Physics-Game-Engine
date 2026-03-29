@@ -69,7 +69,7 @@ namespace Engine.Physics.Bodies
             }
 
             RVector2 acceleration = Gravity + (AccumulatedForce / Mass);
-            Velocity += acceleration * deltaTime;     //gravity gradually increases
+            Velocity += acceleration * deltaTime;     
             Position += Velocity * deltaTime;
             ClearForces();
         }
