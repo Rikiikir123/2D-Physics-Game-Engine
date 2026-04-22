@@ -279,7 +279,7 @@ namespace Engine.Physics.Collision
                     if (penetration <= 0f)
                         return;
 
-                    normal = new RVector2(0f, -1f);
+                    normal = new RVector2(0f, 1f);
                 }
                 else
                 {
@@ -289,7 +289,7 @@ namespace Engine.Physics.Collision
                     if (penetration <= 0f)
                         return;
 
-                    normal = new RVector2(0f, 1f);
+                    normal = new RVector2(0f, -1f);
                 }
             }
             // CASE 2: circle center is vertically inside rectangle span
@@ -304,7 +304,7 @@ namespace Engine.Physics.Collision
                     if (penetration <= 0f)
                         return;
 
-                    normal = new RVector2(-1f, 0f);
+                    normal = new RVector2(1f, 0f);
                 }
                 else
                 {
@@ -314,7 +314,7 @@ namespace Engine.Physics.Collision
                     if (penetration <= 0f)
                         return;
 
-                    normal = new RVector2(1f, 0f);
+                    normal = new RVector2(-1f, 0f);
                 }
             }
             // CASE 3: corner collision
@@ -336,7 +336,7 @@ namespace Engine.Physics.Collision
                 if (distance == 0f)
                     return;
 
-                normal = delta / distance;
+                normal = (closestPoint - circleCenter) / distance;
                 penetration = circle.Radius - distance;
 
                 if (penetration <= 0f)
@@ -346,16 +346,16 @@ namespace Engine.Physics.Collision
             // positional correction
             if (!circleBody.IsStatic && !rectBody.IsStatic)
             {
-                circleBody.Position += normal * (penetration / 2f);
-                rectBody.Position -= normal * (penetration / 2f);
+                circleBody.Position -= normal * (penetration / 2f);
+                rectBody.Position += normal * (penetration / 2f);
             }
             else if (!circleBody.IsStatic)
             {
-                circleBody.Position += normal * penetration;
+                circleBody.Position -= normal * penetration;
             }
             else if (!rectBody.IsStatic)
             {
-                rectBody.Position -= normal * penetration;
+                rectBody.Position += normal * penetration;
             }
 
             ApplyImpulse(circleBody, rectBody, normal);
