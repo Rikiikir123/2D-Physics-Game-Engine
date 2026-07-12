@@ -36,7 +36,7 @@ namespace Engine.Physics.Bodies
             IsGrounded = false;
 
             Restitution = 0.5f;
-            Friction = 0.99f;
+            Friction = 0.99f;    // used as per-frame horizontal damping when grounded on a static surface
 
 
             // check if we want to use gravity

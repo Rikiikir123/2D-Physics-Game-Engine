@@ -35,38 +35,42 @@ namespace EngineRunner
 
             world = new PhysicsWorld();
 
-            //Rigidbody (position, shape, mass, IsStatic, useGravity)
-            RRigidBody body = new RRigidBody(
-                new RVector2(500f, 400f), 
-                new RCircleShape(25f), 
-                100f, 
-                false, 
-                true);
-            body.AddImpulse(new RVector2(-10010f, -50000f));         // direction toward (x,y) pixels per second
+            // test scene: a few bodies falling under gravity with modest sideways velocity,
+            // landing on a shared platform - meant to be watched at a normal, readable speed
+            // instead of stress-testing with huge impulses that tunnel through colliders
 
-            RRigidBody body2 = new RRigidBody(
-                new RVector2(100f, 100f),
-                new RCircleShape(40f),
+            //Rigidbody (position, shape, mass, IsStatic, useGravity)
+            RRigidBody circleA = new RRigidBody(
+                new RVector2(300f, 50f),
+                new RCircleShape(25f),
                 10f,
                 false,
                 true);
-            body2.AddImpulse(new RVector2(-10000f, -50100f));
+            // no impulse, just drops straight down onto the platform
+
+            RRigidBody circleB = new RRigidBody(
+                new RVector2(500f, 60f),
+                new RCircleShape(20f),
+                8f,
+                false,
+                true);
+            circleB.AddImpulse(new RVector2(-150f * circleB.Mass, 0f));  // drifts left at ~150 px/s
 
             //rect
-            RRigidBody body3 = new RRigidBody(
-                new RVector2(120f, 120f),
-                new RRectangleShape(50f, 30f),
-                10f,
+            RRigidBody rectA = new RRigidBody(
+                new RVector2(620f, 40f),
+                new RRectangleShape(60f, 40f),
+                15f,
                 false,
                 true);
-            body3.AddImpulse(new RVector2(-10000f, -5000f));
+            rectA.AddImpulse(new RVector2(-100f * rectA.Mass, 0f));  // drifts left at ~100 px/s
 
             //RAABB (left, right, top, bottom)
-            RAABB platform = new RAABB(150f, 350f, 250f, 270f);
+            RAABB platform = new RAABB(100f, 700f, 350f, 370f);
 
-            world.Bodies.Add(body);
-            world.Bodies.Add(body2);
-            world.Bodies.Add(body3);
+            world.Bodies.Add(circleA);
+            world.Bodies.Add(circleB);
+            world.Bodies.Add(rectA);
 
             world.StaticColliders.Add(platform);
 
@@ -90,7 +94,7 @@ namespace EngineRunner
 
         private float lastTime = 0f;
 
-        private void GameLoop(object sender, EventArgs e)
+        private void GameLoop(object? sender, EventArgs e)
         {
             float currentTime = stopwatch.ElapsedMilliseconds / 1000f;  //sec
             float deltaTime = currentTime - lastTime;                   
