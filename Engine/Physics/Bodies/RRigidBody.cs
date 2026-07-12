@@ -1,12 +1,12 @@
 ﻿using Engine.Math;
+using Engine.Physics.Shapes;
+using static Engine.Physics.Shapes.RShape;
 
 namespace Engine.Physics.Bodies
 {
     public class RRigidBody
     {
         public RVector2 Position;
-        public float Width;
-        public float Height;
 
         public bool IsStatic;
         public bool IsGrounded;
@@ -19,23 +19,24 @@ namespace Engine.Physics.Bodies
         public float Restitution;
         public float Friction;
 
+        public RShape Shape;
         
 
 
 
-        public RRigidBody(RVector2 position, float width, float height, float mass, bool isStatic, bool useGravity)
+        public RRigidBody(RVector2 position, RShape shape, float mass, bool isStatic, bool useGravity)
         {
+
             Position = position;
             Velocity = RVector2.Zero;
             AccumulatedForce = RVector2.Zero;
             Mass = mass;
-            Width = width;
-            Height = height;
+            Shape = shape;
             IsStatic = isStatic;
             IsGrounded = false;
 
             Restitution = 0.5f;
-            Friction = 0.99f;
+            Friction = 0.99f;    // used as per-frame horizontal damping when grounded on a static surface
 
 
             // check if we want to use gravity
@@ -51,14 +52,32 @@ namespace Engine.Physics.Bodies
 
 
         //RAABB (left, right, top, bottom)
-        public RAABB Bounds => new RAABB
-                (
-                    Position.X,
-                    Position.X + Width,
-                    Position.Y,
-                    Position.Y + Height
-                );
+        public RAABB Bounds
+        {
+            get
+            {
+                if (Shape is RRectangleShape rect)
+                {
+                    return new RAABB(
+                        Position.X,
+                        Position.X + rect.Width,
+                        Position.Y,
+                        Position.Y + rect.Height
+                    );
+                }
 
+                if (Shape is RCircleShape circle)
+                {
+                    return new RAABB(
+                        Position.X,
+                        Position.X + circle.Radius * 2f,
+                        Position.Y,
+                        Position.Y + circle.Radius * 2f
+                    );
+                }
+                throw new InvalidOperationException("Unknown shape type.");
+            }
+        }
 
         public void Update(float deltaTime)
         {

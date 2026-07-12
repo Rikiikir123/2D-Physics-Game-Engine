@@ -1,89 +1,39 @@
-﻿
-using Engine.Physics.Bodies;
+﻿using Engine.Physics.Bodies;
 using Engine.Math;
+using static Engine.Physics.Shapes.RShape;
 
 namespace Engine.Physics.Collision
 {
 	public class CollisionResolver
 	{
-        // handles collision between two objects 
-        public static void ResolveCollision(RRigidBody body, RAABB platform)
+
+        // handles collision between a body and a static platform/boundary
+        public static void ResolveStaticCollision(RRigidBody body, RAABB platform)
         {
             if (body.IsStatic)
             {
                 return;
             }
 
-            RAABB b = body.Bounds;
-
-            float overlapLeft = b.Right - platform.Left;
-            float overlapRight = platform.Right - b.Left;
-            float overlapTop = b.Bottom - platform.Top;
-            float overlapBottom = platform.Bottom - b.Top;
-
-            float minOverlapX = System.Math.Min(overlapLeft, overlapRight);
-            float minOverlapY = System.Math.Min(overlapTop, overlapBottom);
-
-            if (minOverlapX < minOverlapY)
+            if (body.Shape is RRectangleShape)
             {
-                // resolve horizontally
-                if (overlapLeft < overlapRight)
+                if (CollisionDetector.TryDetectAABBvsAABB(body.Bounds, platform, out RCollisionManifold manifold))
                 {
-                    body.Position.X -= overlapLeft;
-                }
-                else
-                {
-                    body.Position.X += overlapRight;
-                }
-
-                body.Velocity.X *= -body.Restitution;
-            }
-            else
-            {
-                // vertical collision
-                if (overlapTop < overlapBottom)
-                {
-                    // landed on top of platform
-                    body.Position.Y -= overlapTop;
-
-                    // if body is moving downward
-                    if (body.Velocity.Y > 0f)
-                    {
-                        // and if its speed is small enough, set it to grounded 
-                        if (System.Math.Abs(body.Velocity.Y) < 30f)
-                        {
-                            body.Velocity.Y = 0f;
-                            body.IsGrounded = true;
-                        }
-                        else
-                        {
-                            body.Velocity.Y *= -body.Restitution;
-                        }
-                    }
-                }
-                else
-                {
-                    // hit underside
-                    body.Position.Y += overlapBottom;
-
-                    if (body.Velocity.Y < 0f)
-                    {
-                        body.Velocity.Y *= -body.Restitution;
-                    }
+                    ResolveBodyVsStatic(body, manifold);
                 }
             }
-            if (body.IsGrounded)
+            else if (body.Shape is RCircleShape circle)
             {
-                // if body is grounded apply friction
-                body.Velocity.X *= body.Friction;
+                RVector2 center = body.Position + new RVector2(circle.Radius, circle.Radius);
 
-                // if velocity too small, set it to 0
-                if (System.Math.Abs(body.Velocity.X) < 1f)
+                if (CollisionDetector.TryDetectCircleVsAABB(center, circle.Radius, platform, out RCollisionManifold manifold))
                 {
-                    body.Velocity.X = 0f;
+                    ResolveBodyVsStatic(body, manifold);
                 }
             }
         }
+
+        // handles collision between two dynamic (or dynamic vs static) rigid bodies
         public static void ResolveDynamicCollision(RRigidBody a, RRigidBody b)
         {
             if (a.IsStatic && b.IsStatic)
@@ -91,137 +41,164 @@ namespace Engine.Physics.Collision
                 return;
             }
 
-            RAABB ab = a.Bounds;
-            RAABB bb = b.Bounds;
-
-            float overlapLeft = ab.Right - bb.Left;
-            float overlapRight = bb.Right - ab.Left;
-            float overlapTop = ab.Bottom - bb.Top;
-            float overlapBottom = bb.Bottom - ab.Top;
-
-            float minOverlapX = System.Math.Min(overlapLeft, overlapRight);
-            float minOverlapY = System.Math.Min(overlapTop, overlapBottom);
-
-            RVector2 normal;
-
-            // 1. positional correction
-            if (minOverlapX < minOverlapY)
+            if (a.Shape is RRectangleShape && b.Shape is RRectangleShape)
             {
-                float separation = minOverlapX;
-
-                if (overlapLeft < overlapRight)
+                if (CollisionDetector.TryDetectAABBvsAABB(a.Bounds, b.Bounds, out RCollisionManifold manifold))
                 {
-                    normal = new RVector2(1f, 0f);
+                    ResolveBodyVsBody(a, b, manifold);
+                }
+            }
+            else if (a.Shape is RCircleShape circleA && b.Shape is RCircleShape circleB)
+            {
+                RVector2 centerA = a.Position + new RVector2(circleA.Radius, circleA.Radius);
+                RVector2 centerB = b.Position + new RVector2(circleB.Radius, circleB.Radius);
 
-                    if (!a.IsStatic && !b.IsStatic)
+                if (CollisionDetector.TryDetectCircleVsCircle(centerA, circleA.Radius, centerB, circleB.Radius, out RCollisionManifold manifold))
+                {
+                    ResolveBodyVsBody(a, b, manifold);
+                }
+            }
+            else if (a.Shape is RCircleShape circle && b.Shape is RRectangleShape)
+            {
+                RVector2 center = a.Position + new RVector2(circle.Radius, circle.Radius);
+
+                if (CollisionDetector.TryDetectCircleVsAABB(center, circle.Radius, b.Bounds, out RCollisionManifold manifold))
+                {
+                    ResolveBodyVsBody(a, b, manifold);
+                }
+            }
+            else if (a.Shape is RRectangleShape && b.Shape is RCircleShape circle2)
+            {
+                RVector2 center = b.Position + new RVector2(circle2.Radius, circle2.Radius);
+
+                // detector expects circle first, so flip normal since it now points from b to a
+                if (CollisionDetector.TryDetectCircleVsAABB(center, circle2.Radius, a.Bounds, out RCollisionManifold manifold))
+                {
+                    manifold.Normal *= -1f;
+                    ResolveBodyVsBody(a, b, manifold);
+                }
+            }
+        }
+
+        // pushes a and b apart along the manifold normal, split by inverse mass so a heavier
+        // body barely moves and a static body (invMass 0) doesn't move at all, then applies the impulse
+        private static void ResolveBodyVsBody(RRigidBody a, RRigidBody b, RCollisionManifold manifold)
+        {
+            float invMassA = a.IsStatic ? 0f : 1f / a.Mass;
+            float invMassB = b.IsStatic ? 0f : 1f / b.Mass;
+
+            float totalInvMass = invMassA + invMassB;
+
+            if (totalInvMass > 0f)
+            {
+                float correctionA = manifold.Penetration * (invMassA / totalInvMass);
+                float correctionB = manifold.Penetration * (invMassB / totalInvMass);
+
+                a.Position -= manifold.Normal * correctionA;
+                b.Position += manifold.Normal * correctionB;
+            }
+
+            ApplyImpulse(a, b, manifold.Normal);
+        }
+
+        // static platforms never move, so the full penetration correction goes on the body.
+        // velocity handling matches the old per-shape static resolvers so landing/resting feels the same.
+        private static void ResolveBodyVsStatic(RRigidBody body, RCollisionManifold manifold)
+        {
+            body.Position -= manifold.Normal * manifold.Penetration;
+
+            // axis-aligned contacts (aabb rectangles and flat platform faces) use the old axis rules
+            if (manifold.Normal.Y > 0.9f)
+            {
+                // landing on top of something below
+                if (body.Velocity.Y > 0f)
+                {
+                    if (System.Math.Abs(body.Velocity.Y) < 30f)
                     {
-                        a.Position.X -= separation / 2f;
-                        b.Position.X += separation / 2f;
+                        body.Velocity.Y = 0f;
+                        body.IsGrounded = true;
                     }
-                    else if (!a.IsStatic)
+                    else
                     {
-                        a.Position.X -= separation;
-                    }
-                    else if (!b.IsStatic)
-                    {
-                        b.Position.X += separation;
+                        body.Velocity.Y *= -body.Restitution;
                     }
                 }
-                else
+            }
+            else if (manifold.Normal.Y < -0.9f)
+            {
+                // hitting underside of a platform / ceiling
+                if (body.Velocity.Y < 0f)
                 {
-                    normal = new RVector2(-1f, 0f);
-
-                    if (!a.IsStatic && !b.IsStatic)
-                    {
-                        a.Position.X += separation / 2f;
-                        b.Position.X -= separation / 2f;
-                    }
-                    else if (!a.IsStatic)
-                    {
-                        a.Position.X += separation;
-                    }
-                    else if (!b.IsStatic)
-                    {
-                        b.Position.X -= separation;
-                    }
+                    body.Velocity.Y *= -body.Restitution;
                 }
+            }
+            else if (System.Math.Abs(manifold.Normal.X) > 0.9f)
+            {
+                // side wall hit
+                body.Velocity.X *= -body.Restitution;
             }
             else
             {
-                float separation = minOverlapY;
+                // circle corner or diagonal contact - bounce along the contact normal
+                float velocityAlongNormal = body.Velocity.X * manifold.Normal.X + body.Velocity.Y * manifold.Normal.Y;
 
-                if (overlapTop < overlapBottom)
+                if (velocityAlongNormal > 0f)
                 {
-                    normal = new RVector2(0f, 1f);
-
-                    if (!a.IsStatic && !b.IsStatic)
-                    {
-                        a.Position.Y -= separation / 2f;
-                        b.Position.Y += separation / 2f;
-                    }
-                    else if (!a.IsStatic)
-                    {
-                        a.Position.Y -= separation;
-                    }
-                    else if (!b.IsStatic)
-                    {
-                        b.Position.Y += separation;
-                    }
+                    body.Velocity -= manifold.Normal * ((1f + body.Restitution) * velocityAlongNormal);
                 }
-                else
-                {
-                    normal = new RVector2(0f, -1f);
 
-                    if (!a.IsStatic && !b.IsStatic)
-                    {
-                        a.Position.Y += separation / 2f;
-                        b.Position.Y -= separation / 2f;
-                    }
-                    else if (!a.IsStatic)
-                    {
-                        a.Position.Y += separation;
-                    }
-                    else if (!b.IsStatic)
-                    {
-                        b.Position.Y -= separation;
-                    }
+                if (manifold.Normal.Y > 0f)
+                {
+                    body.IsGrounded = true;
                 }
             }
 
-            // 2. velocity response
+            if (body.IsGrounded)
+            {
+                body.Velocity.X *= body.Friction;
 
-            // how b is moving relative to a
+                if (System.Math.Abs(body.Velocity.X) < 1f)
+                {
+                    body.Velocity.X = 0f;
+                }
+            }
+        }
+
+        private static void ApplyImpulse(RRigidBody a, RRigidBody b, RVector2 normal)
+        {
             RVector2 relativeVelocity = b.Velocity - a.Velocity;
-            // dot product which tells us how fast bodies are moving toward eachother or seperating
             float velAlongNormal = relativeVelocity.X * normal.X + relativeVelocity.Y * normal.Y;
 
-            // skip if bodies are already seperating
             if (velAlongNormal > 0f)
             {
                 return;
             }
-            
-            // inverse masses of a and b
+
             float invMassA = a.IsStatic ? 0f : 1f / a.Mass;
             float invMassB = b.IsStatic ? 0f : 1f / b.Mass;
+            float totalInvMass = invMassA + invMassB;
 
-            // we choose the smaller restitution of the two bodies
-            // MAYBE CHANGE LATER CAUSE WHAT IF ONE BALL IS SUPER BOUNCY AND NEEDS TO BOUNCE OFF A STURDY BALL
+            if (totalInvMass == 0f)
+            {
+                return;
+            }
+
             float restitution = System.Math.Min(a.Restitution, b.Restitution);
 
-            // how strong the collision push should be (magnitude)
             float j = -(1f + restitution) * velAlongNormal;
-            j /= (invMassA + invMassB);
+            j /= totalInvMass;
 
-            // calculate the impulse to give each body along the normal vector
             RVector2 impulse = normal * j;
 
             if (!a.IsStatic)
+            {
                 a.Velocity -= impulse * invMassA;
+            }
 
             if (!b.IsStatic)
+            {
                 b.Velocity += impulse * invMassB;
+            }
         }
     }
 }
-

@@ -8,6 +8,8 @@ using Engine.Math;
 using Engine.Physics;
 using Engine.Physics.Bodies;
 using Engine.Physics.World;
+using Engine.Physics.Shapes;
+using static Engine.Physics.Shapes.RShape;
 
 namespace EngineRunner
 {
@@ -33,21 +35,43 @@ namespace EngineRunner
 
             world = new PhysicsWorld();
 
-            //Rigidbody (position, width, height, mass, IsStatic, useGravity)
-            RRigidBody body = new RRigidBody(new RVector2(500f, 400f), 100f, 100f, 100f, false, true);
-            body.AddImpulse(new RVector2(-10010f, -50000f));         // direction toward (x,y) pixels per second
-            
-            RRigidBody body2 = new RRigidBody(new RVector2(100f, 100f), 50f, 50f, 10f, false, true);
-            body2.AddImpulse(new RVector2(-10000f, -50100f));
-            world.Bodies.Add(new RRigidBody(new RVector2(50f, 50f), 30f, 30f, 10f, false, true));
-            world.Bodies.Add(new RRigidBody(new RVector2(50f, 50f), 30f, 30f, 50f, false, true));
+            // test scene: a few bodies falling under gravity with modest sideways velocity,
+            // landing on a shared platform - meant to be watched at a normal, readable speed
+            // instead of stress-testing with huge impulses that tunnel through colliders
+
+            //Rigidbody (position, shape, mass, IsStatic, useGravity)
+            RRigidBody circleA = new RRigidBody(
+                new RVector2(300f, 50f),
+                new RCircleShape(25f),
+                10f,
+                false,
+                true);
+            // no impulse, just drops straight down onto the platform
+
+            RRigidBody circleB = new RRigidBody(
+                new RVector2(500f, 60f),
+                new RCircleShape(20f),
+                8f,
+                false,
+                true);
+            circleB.AddImpulse(new RVector2(-150f * circleB.Mass, 0f));  // drifts left at ~150 px/s
+
+            //rect
+            RRigidBody rectA = new RRigidBody(
+                new RVector2(620f, 40f),
+                new RRectangleShape(60f, 40f),
+                15f,
+                false,
+                true);
+            rectA.AddImpulse(new RVector2(-100f * rectA.Mass, 0f));  // drifts left at ~100 px/s
 
             //RAABB (left, right, top, bottom)
-            RAABB platform = new RAABB(150f, 350f, 250f, 270f);
+            RAABB platform = new RAABB(100f, 700f, 350f, 370f);
 
-            
-            world.Bodies.Add(body2);
-            world.Bodies.Add(body);
+            world.Bodies.Add(circleA);
+            world.Bodies.Add(circleB);
+            world.Bodies.Add(rectA);
+
             world.StaticColliders.Add(platform);
 
             stopwatch = new Stopwatch();
@@ -70,7 +94,7 @@ namespace EngineRunner
 
         private float lastTime = 0f;
 
-        private void GameLoop(object sender, EventArgs e)
+        private void GameLoop(object? sender, EventArgs e)
         {
             float currentTime = stopwatch.ElapsedMilliseconds / 1000f;  //sec
             float deltaTime = currentTime - lastTime;                   
@@ -107,13 +131,26 @@ namespace EngineRunner
 
            foreach (RRigidBody body in world.Bodies)
             {
-                e.Graphics.FillEllipse(
+                if (body.Shape is RCircleShape circle)
+                {
+                    e.Graphics.FillEllipse(
                     Brushes.BlueViolet,
                     body.Position.X,
                     body.Position.Y,
-                    body.Width,
-                    body.Height
-                );
+                    circle.Radius * 2f,
+                    circle.Radius * 2f
+                    );
+                }
+                if (body.Shape is RRectangleShape rectangle)
+                {
+                    e.Graphics.FillRectangle(
+                    Brushes.BlueViolet,
+                    body.Position.X,
+                    body.Position.Y,
+                    rectangle.Width,
+                    rectangle.Height
+                    );
+                }
             }
             
             foreach (RAABB collider in world.StaticColliders)

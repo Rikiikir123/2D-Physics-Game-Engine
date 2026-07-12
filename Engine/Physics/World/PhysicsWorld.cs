@@ -32,14 +32,14 @@ namespace Engine.Physics.World
                 {
                     if (body.Bounds.Intersects(collider))
                     {
-                        CollisionResolver.ResolveCollision(body, collider);
+                        CollisionResolver.ResolveStaticCollision(body, collider);
                     }
                 }
                 foreach (var collider in BoundaryColliders)
                 {
                     if (body.Bounds.Intersects(collider))
                     {
-                        CollisionResolver.ResolveCollision(body, collider);
+                        CollisionResolver.ResolveStaticCollision(body, collider);
                     }
                 }
             }
