@@ -1,9 +1,7 @@
 using System;
-using System.Timers;
 using System.Diagnostics;
 using System.Windows.Forms;
 using System.Drawing;
-using System.Threading;
 using Engine.Math;
 using Engine.Physics;
 using Engine.Physics.Bodies;
@@ -17,7 +15,7 @@ namespace EngineRunner
     {
         private const float FixedDeltaTime = 1f / 120f; // 120 physics steps/sec
         private float accumulator = 0f;
- 
+
         private System.Windows.Forms.Timer timer;
         private Stopwatch stopwatch;
 
@@ -26,53 +24,75 @@ namespace EngineRunner
 
         private PhysicsWorld world;
 
+        // toggle with D key during runtime to hide debug info for clean presentation
+        private bool showDebug = true;
+
+        // tracked separately from stopwatch so the FPS counter works frame-to-frame
+        private float lastTime = 0f;
+        private float lastDeltaTime = 0.016f;
+
         public Form1()
         {
             // initializes the form
             InitializeComponent();
+            this.Text = "Physics Engine";
             // reduces flickering when redrawing
             this.DoubleBuffered = true;
 
             world = new PhysicsWorld();
 
-            // test scene: a few bodies falling under gravity with modest sideways velocity,
-            // landing on a shared platform - meant to be watched at a normal, readable speed
-            // instead of stress-testing with huge impulses that tunnel through colliders
+            // test scene: bodies with varied shapes and gentle velocities landing on two platforms.
+            // circleA drops straight down onto the main platform.
+            // circleB drifts left and collides with circleA on the platform (circle-circle contact).
+            // rectA drifts left and falls to a lower ledge (rect-static contact).
+            // circleC arcs upward, falls back down onto rectA (circle-rect dynamic contact).
 
-            //Rigidbody (position, shape, mass, IsStatic, useGravity)
             RRigidBody circleA = new RRigidBody(
-                new RVector2(300f, 50f),
+                new RVector2(320f, 50f),
                 new RCircleShape(25f),
                 10f,
                 false,
                 true);
-            // no impulse, just drops straight down onto the platform
+            // no impulse, drops straight down
 
             RRigidBody circleB = new RRigidBody(
-                new RVector2(500f, 60f),
+                new RVector2(530f, 80f),
                 new RCircleShape(20f),
                 8f,
                 false,
                 true);
-            circleB.AddImpulse(new RVector2(-150f * circleB.Mass, 0f));  // drifts left at ~150 px/s
+            circleB.AddImpulse(new RVector2(-180f * circleB.Mass, 0f));  // drifts left at ~180 px/s
 
-            //rect
             RRigidBody rectA = new RRigidBody(
-                new RVector2(620f, 40f),
+                new RVector2(560f, 60f),
                 new RRectangleShape(60f, 40f),
                 15f,
                 false,
                 true);
-            rectA.AddImpulse(new RVector2(-100f * rectA.Mass, 0f));  // drifts left at ~100 px/s
+            rectA.AddImpulse(new RVector2(-80f * rectA.Mass, 0f));  // drifts left at ~80 px/s toward the ledge
 
-            //RAABB (left, right, top, bottom)
-            RAABB platform = new RAABB(100f, 700f, 350f, 370f);
+            RRigidBody circleC = new RRigidBody(
+                new RVector2(180f, 250f),
+                new RCircleShape(18f),
+                6f,
+                false,
+                true);
+            // small arc: rightward and slightly up so it lands on rectA as it settles on the ledge
+            circleC.AddImpulse(new RVector2(120f * circleC.Mass, -180f * circleC.Mass));
+
+            // main platform: wide, center of window
+            RAABB mainPlatform = new RAABB(80f, 680f, 320f, 340f);
+
+            // ledge: narrower, lower and to the right
+            RAABB ledge = new RAABB(460f, 700f, 410f, 430f);
 
             world.Bodies.Add(circleA);
             world.Bodies.Add(circleB);
             world.Bodies.Add(rectA);
+            world.Bodies.Add(circleC);
 
-            world.StaticColliders.Add(platform);
+            world.StaticColliders.Add(mainPlatform);
+            world.StaticColliders.Add(ledge);
 
             stopwatch = new Stopwatch();
             stopwatch.Start();
@@ -84,20 +104,10 @@ namespace EngineRunner
             timer.Start();
         }
 
-
-
-
-
-
-
-
-
-        private float lastTime = 0f;
-
         private void GameLoop(object? sender, EventArgs e)
         {
-            float currentTime = stopwatch.ElapsedMilliseconds / 1000f;  //sec
-            float deltaTime = currentTime - lastTime;                   
+            float currentTime = stopwatch.ElapsedMilliseconds / 1000f;  // seconds
+            float deltaTime = currentTime - lastTime;
             lastTime = currentTime;
 
             // clamp huge spikes (if a frame took too long act like it didn't)
@@ -106,62 +116,145 @@ namespace EngineRunner
                 deltaTime = 0.05f;
             }
 
+            lastDeltaTime = deltaTime;
             accumulator += deltaTime;
-
 
             clientHeight = this.ClientSize.Height;
             clientWidth = this.ClientSize.Width;
-            
 
-            while (accumulator >= FixedDeltaTime)                          
+            while (accumulator >= FixedDeltaTime)
             {
                 world.UpdateBounds(clientHeight, clientWidth);
                 world.Step(FixedDeltaTime);    // runs one fixed physics step
-                accumulator -= FixedDeltaTime;                           //.. then subtract one fixed physics step time from the time 
+                accumulator -= FixedDeltaTime;
             }
 
             // repaint
             Invalidate();
         }
 
+        protected override void OnKeyDown(KeyEventArgs e)
+        {
+            base.OnKeyDown(e);
+            // press D to toggle debug overlay on/off
+            if (e.KeyCode == Keys.D)
+            {
+                showDebug = !showDebug;
+            }
+        }
+
         // draw the world
         protected override void OnPaint(PaintEventArgs e)
         {
-           base.OnPaint(e);
+            base.OnPaint(e);
 
-           foreach (RRigidBody body in world.Bodies)
-            {
-                if (body.Shape is RCircleShape circle)
-                {
-                    e.Graphics.FillEllipse(
-                    Brushes.BlueViolet,
-                    body.Position.X,
-                    body.Position.Y,
-                    circle.Radius * 2f,
-                    circle.Radius * 2f
-                    );
-                }
-                if (body.Shape is RRectangleShape rectangle)
-                {
-                    e.Graphics.FillRectangle(
-                    Brushes.BlueViolet,
-                    body.Position.X,
-                    body.Position.Y,
-                    rectangle.Width,
-                    rectangle.Height
-                    );
-                }
-            }
-            
+            Graphics g = e.Graphics;
+
+            // draw static colliders
             foreach (RAABB collider in world.StaticColliders)
             {
-                e.Graphics.FillRectangle(
-                    Brushes.Blue,
+                g.FillRectangle(
+                    Brushes.SteelBlue,
                     collider.Left,
                     collider.Top,
                     collider.Right - collider.Left,
                     collider.Bottom - collider.Top
                 );
+            }
+
+            // draw each body
+            foreach (RRigidBody body in world.Bodies)
+            {
+                RVector2 center;
+
+                if (body.Shape is RCircleShape circle)
+                {
+                    Brush fill = body.IsGrounded ? Brushes.MediumPurple : Brushes.BlueViolet;
+                    g.FillEllipse(fill, body.Position.X, body.Position.Y, circle.Radius * 2f, circle.Radius * 2f);
+                    center = new RVector2(body.Position.X + circle.Radius, body.Position.Y + circle.Radius);
+
+                    if (showDebug)
+                    {
+                        // AABB outline
+                        RAABB bounds = body.Bounds;
+                        g.DrawRectangle(Pens.Gray,
+                            bounds.Left, bounds.Top,
+                            bounds.Right - bounds.Left,
+                            bounds.Bottom - bounds.Top);
+
+                        // grounded ring
+                        if (body.IsGrounded)
+                        {
+                            g.DrawEllipse(Pens.LimeGreen,
+                                body.Position.X - 2f, body.Position.Y - 2f,
+                                circle.Radius * 2f + 4f, circle.Radius * 2f + 4f);
+                        }
+                    }
+                }
+                else if (body.Shape is RRectangleShape rect)
+                {
+                    Brush fill = body.IsGrounded ? Brushes.MediumPurple : Brushes.BlueViolet;
+                    g.FillRectangle(fill, body.Position.X, body.Position.Y, rect.Width, rect.Height);
+                    center = new RVector2(body.Position.X + rect.Width / 2f, body.Position.Y + rect.Height / 2f);
+
+                    if (showDebug)
+                    {
+                        // AABB outline (same as shape for rectangles, but shows the bounds are correct)
+                        RAABB bounds = body.Bounds;
+                        g.DrawRectangle(Pens.Gray,
+                            bounds.Left, bounds.Top,
+                            bounds.Right - bounds.Left,
+                            bounds.Bottom - bounds.Top);
+
+                        // grounded outline
+                        if (body.IsGrounded)
+                        {
+                            g.DrawRectangle(Pens.LimeGreen,
+                                body.Position.X - 2f, body.Position.Y - 2f,
+                                rect.Width + 4f, rect.Height + 4f);
+                        }
+                    }
+                }
+                else
+                {
+                    continue;
+                }
+
+                if (showDebug)
+                {
+                    // velocity vector from center, scaled down to be readable
+                    const float velocityScale = 0.08f;
+                    const float maxLength = 80f;
+
+                    RVector2 vel = body.Velocity * velocityScale;
+                    float velLen = vel.Length;
+                    if (velLen > maxLength)
+                    {
+                        vel = vel / velLen * maxLength;
+                    }
+
+                    if (velLen > 0.5f)
+                    {
+                        g.DrawLine(Pens.LimeGreen,
+                            center.X, center.Y,
+                            center.X + vel.X, center.Y + vel.Y);
+
+                        // small arrowhead dot at the tip
+                        g.FillEllipse(Brushes.LimeGreen,
+                            center.X + vel.X - 2f, center.Y + vel.Y - 2f, 4f, 4f);
+                    }
+                }
+            }
+
+            if (showDebug)
+            {
+                // FPS counter - bottom right so it stays readable on a light background
+                float fps = lastDeltaTime > 0f ? 1f / lastDeltaTime : 0f;
+                string hudText = $"FPS: {fps:F0}  |  Bodies: {world.Bodies.Count}  |  [D] toggle debug";
+                SizeF textSize = g.MeasureString(hudText, SystemFonts.DefaultFont);
+                float hudX = this.ClientSize.Width - textSize.Width - 6f;
+                float hudY = this.ClientSize.Height - textSize.Height - 6f;
+                g.DrawString(hudText, SystemFonts.DefaultFont, Brushes.Black, hudX, hudY);
             }
         }
     }
