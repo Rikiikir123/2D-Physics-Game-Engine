@@ -169,7 +169,7 @@ namespace EngineRunner
 
                 if (body.Shape is RCircleShape circle)
                 {
-                    Brush fill = body.IsGrounded ? Brushes.MediumPurple : Brushes.BlueViolet;
+                    Brush fill = body.IsSleeping ? Brushes.Gray : (body.IsGrounded ? Brushes.MediumPurple : Brushes.BlueViolet);
                     g.FillEllipse(fill, body.Position.X, body.Position.Y, circle.Radius * 2f, circle.Radius * 2f);
                     center = new RVector2(body.Position.X + circle.Radius, body.Position.Y + circle.Radius);
 
@@ -189,11 +189,19 @@ namespace EngineRunner
                                 body.Position.X - 2f, body.Position.Y - 2f,
                                 circle.Radius * 2f + 4f, circle.Radius * 2f + 4f);
                         }
+
+                        // sleeping outline
+                        if (body.IsSleeping)
+                        {
+                            g.DrawEllipse(Pens.DarkGray,
+                                body.Position.X - 2f, body.Position.Y - 2f,
+                                circle.Radius * 2f + 4f, circle.Radius * 2f + 4f);
+                        }
                     }
                 }
                 else if (body.Shape is RRectangleShape rect)
                 {
-                    Brush fill = body.IsGrounded ? Brushes.MediumPurple : Brushes.BlueViolet;
+                    Brush fill = body.IsSleeping ? Brushes.Gray : (body.IsGrounded ? Brushes.MediumPurple : Brushes.BlueViolet);
                     g.FillRectangle(fill, body.Position.X, body.Position.Y, rect.Width, rect.Height);
                     center = new RVector2(body.Position.X + rect.Width / 2f, body.Position.Y + rect.Height / 2f);
 
@@ -210,6 +218,14 @@ namespace EngineRunner
                         if (body.IsGrounded)
                         {
                             g.DrawRectangle(Pens.LimeGreen,
+                                body.Position.X - 2f, body.Position.Y - 2f,
+                                rect.Width + 4f, rect.Height + 4f);
+                        }
+
+                        // sleeping outline
+                        if (body.IsSleeping)
+                        {
+                            g.DrawRectangle(Pens.DarkGray,
                                 body.Position.X - 2f, body.Position.Y - 2f,
                                 rect.Width + 4f, rect.Height + 4f);
                         }
@@ -250,7 +266,13 @@ namespace EngineRunner
             {
                 // FPS counter - bottom right so it stays readable on a light background
                 float fps = lastDeltaTime > 0f ? 1f / lastDeltaTime : 0f;
-                string hudText = $"FPS: {fps:F0}  |  Bodies: {world.Bodies.Count}  |  [D] toggle debug";
+                int sleepingCount = 0;
+                foreach (var body in world.Bodies)
+                {
+                    if (body.IsSleeping) sleepingCount++;
+                }
+
+                string hudText = $"FPS: {fps:F0}  |  Bodies: {world.Bodies.Count}  |  Sleeping: {sleepingCount}  |  [D] toggle debug";
                 SizeF textSize = g.MeasureString(hudText, SystemFonts.DefaultFont);
                 float hudX = this.ClientSize.Width - textSize.Width - 6f;
                 float hudY = this.ClientSize.Height - textSize.Height - 6f;

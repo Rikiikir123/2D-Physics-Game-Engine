@@ -11,6 +11,10 @@ namespace Engine.Physics.Bodies
         public bool IsStatic;
         public bool IsGrounded;
 
+        public bool IsSleeping;
+        public bool HadContact;     // reset and set by PhysicsWorld each step
+        public float SleepTimer;    // seconds spent continuously below the sleep velocity threshold
+
         public RVector2 AccumulatedForce;
         public RVector2 Velocity;
         public RVector2 Gravity;
@@ -34,6 +38,10 @@ namespace Engine.Physics.Bodies
             Shape = shape;
             IsStatic = isStatic;
             IsGrounded = false;
+
+            IsSleeping = false;
+            HadContact = false;
+            SleepTimer = 0f;
 
             Restitution = 0.5f;
             Friction = 0.99f;    // used as per-frame horizontal damping when grounded on a static surface
@@ -105,6 +113,7 @@ namespace Engine.Physics.Bodies
                 return;
             }
 
+            Wake();
             AccumulatedForce += force;
         }
         public void AddImpulse(RVector2 impulse)
@@ -114,7 +123,40 @@ namespace Engine.Physics.Bodies
                 return;
             }
 
+            Wake();
             Velocity += impulse / Mass;
+        }
+
+        // reactivates a sleeping body - called whenever something disturbs it
+        public void Wake()
+        {
+            IsSleeping = false;
+            SleepTimer = 0f;
+        }
+
+        // called once per step for bodies that had no contact this step - accumulates time spent
+        // slow enough to sleep, and puts the body to sleep once it's been still for long enough
+        public void TrySleep(float deltaTime, float velocityThreshold, float sleepTimeRequired)
+        {
+            if (IsStatic || IsSleeping)
+            {
+                return;
+            }
+
+            if (Velocity.Length < velocityThreshold)
+            {
+                SleepTimer += deltaTime;
+
+                if (SleepTimer >= sleepTimeRequired)
+                {
+                    IsSleeping = true;
+                    Velocity = RVector2.Zero;
+                }
+            }
+            else
+            {
+                SleepTimer = 0f;
+            }
         }
     }
 }
