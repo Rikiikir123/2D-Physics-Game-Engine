@@ -16,20 +16,29 @@ namespace Engine.Physics.World
         // 1 is equivalent to the old single-pass behavior.
         public int SolverIterations = 3;
 
+        // bodies slower than this (px/s) count toward falling asleep
+        public float SleepVelocityThreshold = 8f;
+        // seconds a body must stay below the threshold, with no contact, before it sleeps
+        public float SleepTimeRequired = 0.4f;
+
 
         // one physics step
         public void Step(float deltaTime)
         {
-            // reset grounded state before integration so it gets set fresh each step
+            // reset per-step flags before integration
             foreach (var body in Bodies)
             {
                 body.IsGrounded = false;
+                body.HadContact = false;
             }
 
-            // integrate velocity and position
+            // integrate velocity and position - sleeping bodies skip this so they stay put
             foreach (var body in Bodies)
             {
-                body.Update(deltaTime);
+                if (!body.IsStatic && !body.IsSleeping)
+                {
+                    body.Update(deltaTime);
+                }
             }
 
             // run collision detection and resolution multiple times to converge on stable contacts
@@ -41,6 +50,10 @@ namespace Engine.Physics.World
                     {
                         if (body.Bounds.Intersects(collider))
                         {
+                            // only actually wake a sleeping body here - a body already awake and
+                            // resting in continuous contact shouldn't have its sleep timer reset every step
+                            if (body.IsSleeping) body.Wake();
+                            body.HadContact = true;
                             CollisionResolver.ResolveStaticCollision(body, collider);
                         }
                     }
@@ -48,6 +61,8 @@ namespace Engine.Physics.World
                     {
                         if (body.Bounds.Intersects(collider))
                         {
+                            if (body.IsSleeping) body.Wake();
+                            body.HadContact = true;
                             CollisionResolver.ResolveStaticCollision(body, collider);
                         }
                     }
@@ -62,9 +77,23 @@ namespace Engine.Physics.World
 
                         if (a.Bounds.Intersects(b.Bounds))
                         {
+                            if (a.IsSleeping) a.Wake();
+                            if (b.IsSleeping) b.Wake();
+                            a.HadContact = true;
+                            b.HadContact = true;
                             CollisionResolver.ResolveDynamicCollision(a, b);
                         }
                     }
+                }
+            }
+
+            // sleeping is based purely on how slow a body is moving, not on whether it's in contact -
+            // a body resting on a platform is touching it every step and should still be able to sleep
+            foreach (var body in Bodies)
+            {
+                if (!body.IsStatic)
+                {
+                    body.TrySleep(deltaTime, SleepVelocityThreshold, SleepTimeRequired);
                 }
             }
         }
