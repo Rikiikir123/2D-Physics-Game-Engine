@@ -1,10 +1,10 @@
-﻿using Engine.Physics.Bodies;
+using Engine.Physics.Bodies;
 using Engine.Math;
 using static Engine.Physics.Shapes.RShape;
 
 namespace Engine.Physics.Collision
 {
-	public class CollisionResolver
+	public class RCollisionResolver
 	{
 
         // handles collision between a body and a static platform/boundary
@@ -17,7 +17,7 @@ namespace Engine.Physics.Collision
 
             if (body.Shape is RRectangleShape)
             {
-                if (CollisionDetector.TryDetectAABBvsAABB(body.Bounds, platform, out RCollisionManifold manifold))
+                if (RCollisionDetector.TryDetectAABBvsAABB(body.Bounds, platform, out RCollisionManifold manifold))
                 {
                     ResolveBodyVsStatic(body, manifold);
                 }
@@ -26,7 +26,7 @@ namespace Engine.Physics.Collision
             {
                 RVector2 center = body.Position + new RVector2(circle.Radius, circle.Radius);
 
-                if (CollisionDetector.TryDetectCircleVsAABB(center, circle.Radius, platform, out RCollisionManifold manifold))
+                if (RCollisionDetector.TryDetectCircleVsAABB(center, circle.Radius, platform, out RCollisionManifold manifold))
                 {
                     ResolveBodyVsStatic(body, manifold);
                 }
@@ -43,7 +43,7 @@ namespace Engine.Physics.Collision
 
             if (a.Shape is RRectangleShape && b.Shape is RRectangleShape)
             {
-                if (CollisionDetector.TryDetectAABBvsAABB(a.Bounds, b.Bounds, out RCollisionManifold manifold))
+                if (RCollisionDetector.TryDetectAABBvsAABB(a.Bounds, b.Bounds, out RCollisionManifold manifold))
                 {
                     ResolveBodyVsBody(a, b, manifold);
                 }
@@ -53,7 +53,7 @@ namespace Engine.Physics.Collision
                 RVector2 centerA = a.Position + new RVector2(circleA.Radius, circleA.Radius);
                 RVector2 centerB = b.Position + new RVector2(circleB.Radius, circleB.Radius);
 
-                if (CollisionDetector.TryDetectCircleVsCircle(centerA, circleA.Radius, centerB, circleB.Radius, out RCollisionManifold manifold))
+                if (RCollisionDetector.TryDetectCircleVsCircle(centerA, circleA.Radius, centerB, circleB.Radius, out RCollisionManifold manifold))
                 {
                     ResolveBodyVsBody(a, b, manifold);
                 }
@@ -62,7 +62,7 @@ namespace Engine.Physics.Collision
             {
                 RVector2 center = a.Position + new RVector2(circle.Radius, circle.Radius);
 
-                if (CollisionDetector.TryDetectCircleVsAABB(center, circle.Radius, b.Bounds, out RCollisionManifold manifold))
+                if (RCollisionDetector.TryDetectCircleVsAABB(center, circle.Radius, b.Bounds, out RCollisionManifold manifold))
                 {
                     ResolveBodyVsBody(a, b, manifold);
                 }
@@ -72,7 +72,7 @@ namespace Engine.Physics.Collision
                 RVector2 center = b.Position + new RVector2(circle2.Radius, circle2.Radius);
 
                 // detector expects circle first, so flip normal since it now points from b to a
-                if (CollisionDetector.TryDetectCircleVsAABB(center, circle2.Radius, a.Bounds, out RCollisionManifold manifold))
+                if (RCollisionDetector.TryDetectCircleVsAABB(center, circle2.Radius, a.Bounds, out RCollisionManifold manifold))
                 {
                     manifold.Normal *= -1f;
                     ResolveBodyVsBody(a, b, manifold);
@@ -96,6 +96,18 @@ namespace Engine.Physics.Collision
 
                 a.Position -= manifold.Normal * correctionA;
                 b.Position += manifold.Normal * correctionB;
+            }
+
+            // manifold normal always points from a to b, so a resting on top of b means
+            // b is mostly below a (normal.Y > 0) and vice versa - without this, standing on
+            // a dynamic body (like a pushable prop) never counts as grounded for jumping
+            if (manifold.Normal.Y > 0.9f)
+            {
+                a.IsGrounded = true;
+            }
+            else if (manifold.Normal.Y < -0.9f)
+            {
+                b.IsGrounded = true;
             }
 
             ApplyImpulse(a, b, manifold.Normal);
