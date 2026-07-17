@@ -1,11 +1,11 @@
-﻿using Engine.Physics;
+using Engine.Physics;
 using System;
 using Engine.Physics.Bodies;
 using Engine.Physics.Collision;
 
 namespace Engine.Physics.World
 {
-    public class PhysicsWorld
+    public class RPhysicsWorld
     {
         public List<RRigidBody> Bodies = new();
         public List<RAABB> StaticColliders = new();
@@ -54,7 +54,7 @@ namespace Engine.Physics.World
                             // resting in continuous contact shouldn't have its sleep timer reset every step
                             if (body.IsSleeping) body.Wake();
                             body.HadContact = true;
-                            CollisionResolver.ResolveStaticCollision(body, collider);
+                            RCollisionResolver.ResolveStaticCollision(body, collider);
                         }
                     }
                     foreach (var collider in BoundaryColliders)
@@ -63,7 +63,7 @@ namespace Engine.Physics.World
                         {
                             if (body.IsSleeping) body.Wake();
                             body.HadContact = true;
-                            CollisionResolver.ResolveStaticCollision(body, collider);
+                            RCollisionResolver.ResolveStaticCollision(body, collider);
                         }
                     }
                 }
@@ -81,7 +81,7 @@ namespace Engine.Physics.World
                             if (b.IsSleeping) b.Wake();
                             a.HadContact = true;
                             b.HadContact = true;
-                            CollisionResolver.ResolveDynamicCollision(a, b);
+                            RCollisionResolver.ResolveDynamicCollision(a, b);
                         }
                     }
                 }

@@ -12,8 +12,9 @@ namespace Engine.Physics.Bodies
         public bool IsGrounded;
 
         public bool IsSleeping;
-        public bool HadContact;     // reset and set by PhysicsWorld each step
+        public bool HadContact;     // reset and set by RPhysicsWorld each step
         public float SleepTimer;    // seconds spent continuously below the sleep velocity threshold
+        public bool CanSleep = true;   // player-controlled bodies set this false so they never freeze
 
         public RVector2 AccumulatedForce;
         public RVector2 Velocity;
@@ -138,7 +139,7 @@ namespace Engine.Physics.Bodies
         // slow enough to sleep, and puts the body to sleep once it's been still for long enough
         public void TrySleep(float deltaTime, float velocityThreshold, float sleepTimeRequired)
         {
-            if (IsStatic || IsSleeping)
+            if (IsStatic || IsSleeping || !CanSleep)
             {
                 return;
             }

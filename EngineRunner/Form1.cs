@@ -1,10 +1,12 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Windows.Forms;
 using System.Drawing;
 using Engine.Math;
 using Engine.Physics;
 using Engine.Physics.Bodies;
+using Engine.Physics.Controllers;
 using Engine.Physics.World;
 using Engine.Physics.Shapes;
 using static Engine.Physics.Shapes.RShape;
@@ -22,10 +24,16 @@ namespace EngineRunner
         private float clientHeight;
         private float clientWidth;
 
-        private PhysicsWorld world;
+        private RPhysicsWorld world;
+        private RRigidBody player;
+        private RPlayerController playerController;
 
-        // toggle with D key during runtime to hide debug info for clean presentation
+        // toggle with F1 during runtime to hide debug info for clean presentation
         private bool showDebug = true;
+
+        // held movement keys are tracked continuously, jump is consumed once per press
+        private readonly HashSet<Keys> heldKeys = new();
+        private bool jumpPressed = false;
 
         // tracked separately from stopwatch so the FPS counter works frame-to-frame
         private float lastTime = 0f;
@@ -38,61 +46,44 @@ namespace EngineRunner
             this.Text = "Physics Engine";
             // reduces flickering when redrawing
             this.DoubleBuffered = true;
+            // form must see key events before any child control does
+            this.KeyPreview = true;
 
-            world = new PhysicsWorld();
+            world = new RPhysicsWorld();
 
-            // test scene: bodies with varied shapes and gentle velocities landing on two platforms.
-            // circleA drops straight down onto the main platform.
-            // circleB drifts left and collides with circleA on the platform (circle-circle contact).
-            // rectA drifts left and falls to a lower ledge (rect-static contact).
-            // circleC arcs upward, falls back down onto rectA (circle-rect dynamic contact).
+            // playable level: a ground floor plus a few platforms at increasing height so
+            // reaching the top row requires jumping between them.
+            RAABB ground = new RAABB(0f, 800f, 400f, 450f);
+            RAABB platformLow = new RAABB(80f, 280f, 320f, 340f);
+            RAABB platformMid = new RAABB(320f, 520f, 240f, 260f);
+            RAABB platformHigh = new RAABB(560f, 760f, 160f, 180f);
 
-            RRigidBody circleA = new RRigidBody(
-                new RVector2(320f, 50f),
-                new RCircleShape(25f),
+            world.StaticColliders.Add(ground);
+            world.StaticColliders.Add(platformLow);
+            world.StaticColliders.Add(platformMid);
+            world.StaticColliders.Add(platformHigh);
+
+            // the player: a rectangle body that never sleeps, so it always responds to input
+            player = new RRigidBody(
+                new RVector2(50f, 340f),
+                new RRectangleShape(30f, 50f),
                 10f,
                 false,
                 true);
-            // no impulse, drops straight down
+            player.CanSleep = false;
+            player.Restitution = 0f; // player shouldn't bounce off the ground/platforms like a regular object
+            playerController = new RPlayerController(player);
 
-            RRigidBody circleB = new RRigidBody(
-                new RVector2(530f, 80f),
-                new RCircleShape(20f),
-                8f,
-                false,
-                true);
-            circleB.AddImpulse(new RVector2(-180f * circleB.Mass, 0f));  // drifts left at ~180 px/s
+            world.Bodies.Add(player);
 
-            RRigidBody rectA = new RRigidBody(
-                new RVector2(560f, 60f),
-                new RRectangleShape(60f, 40f),
-                15f,
-                false,
-                true);
-            rectA.AddImpulse(new RVector2(-80f * rectA.Mass, 0f));  // drifts left at ~80 px/s toward the ledge
-
-            RRigidBody circleC = new RRigidBody(
-                new RVector2(180f, 250f),
+            // a small pushable prop to demonstrate dynamic collision while playing
+            RRigidBody prop = new RRigidBody(
+                new RVector2(400f, 370f),
                 new RCircleShape(18f),
-                6f,
+                4f,
                 false,
                 true);
-            // small arc: rightward and slightly up so it lands on rectA as it settles on the ledge
-            circleC.AddImpulse(new RVector2(120f * circleC.Mass, -180f * circleC.Mass));
-
-            // main platform: wide, center of window
-            RAABB mainPlatform = new RAABB(80f, 680f, 320f, 340f);
-
-            // ledge: narrower, lower and to the right
-            RAABB ledge = new RAABB(460f, 700f, 410f, 430f);
-
-            world.Bodies.Add(circleA);
-            world.Bodies.Add(circleB);
-            world.Bodies.Add(rectA);
-            world.Bodies.Add(circleC);
-
-            world.StaticColliders.Add(mainPlatform);
-            world.StaticColliders.Add(ledge);
+            world.Bodies.Add(prop);
 
             stopwatch = new Stopwatch();
             stopwatch.Start();
@@ -125,6 +116,12 @@ namespace EngineRunner
             while (accumulator >= FixedDeltaTime)
             {
                 world.UpdateBounds(clientHeight, clientWidth);
+
+                bool moveLeft = heldKeys.Contains(Keys.A) || heldKeys.Contains(Keys.Left);
+                bool moveRight = heldKeys.Contains(Keys.D) || heldKeys.Contains(Keys.Right);
+                playerController.ApplyInput(moveLeft, moveRight, jumpPressed);
+                jumpPressed = false;
+
                 world.Step(FixedDeltaTime);    // runs one fixed physics step
                 accumulator -= FixedDeltaTime;
             }
@@ -136,11 +133,26 @@ namespace EngineRunner
         protected override void OnKeyDown(KeyEventArgs e)
         {
             base.OnKeyDown(e);
-            // press D to toggle debug overlay on/off
-            if (e.KeyCode == Keys.D)
+
+            // F1 toggles debug info for clean presentation, separate from movement keys
+            if (e.KeyCode == Keys.F1)
             {
                 showDebug = !showDebug;
+                return;
             }
+
+            if (e.KeyCode == Keys.Space || e.KeyCode == Keys.W || e.KeyCode == Keys.Up)
+            {
+                jumpPressed = true;
+            }
+
+            heldKeys.Add(e.KeyCode);
+        }
+
+        protected override void OnKeyUp(KeyEventArgs e)
+        {
+            base.OnKeyUp(e);
+            heldKeys.Remove(e.KeyCode);
         }
 
         // draw the world
@@ -166,6 +178,7 @@ namespace EngineRunner
             foreach (RRigidBody body in world.Bodies)
             {
                 RVector2 center;
+                bool isPlayer = body == player;
 
                 if (body.Shape is RCircleShape circle)
                 {
@@ -201,7 +214,9 @@ namespace EngineRunner
                 }
                 else if (body.Shape is RRectangleShape rect)
                 {
-                    Brush fill = body.IsSleeping ? Brushes.Gray : (body.IsGrounded ? Brushes.MediumPurple : Brushes.BlueViolet);
+                    Brush fill = isPlayer
+                        ? Brushes.OrangeRed
+                        : (body.IsSleeping ? Brushes.Gray : (body.IsGrounded ? Brushes.MediumPurple : Brushes.BlueViolet));
                     g.FillRectangle(fill, body.Position.X, body.Position.Y, rect.Width, rect.Height);
                     center = new RVector2(body.Position.X + rect.Width / 2f, body.Position.Y + rect.Height / 2f);
 
@@ -272,7 +287,7 @@ namespace EngineRunner
                     if (body.IsSleeping) sleepingCount++;
                 }
 
-                string hudText = $"FPS: {fps:F0}  |  Bodies: {world.Bodies.Count}  |  Sleeping: {sleepingCount}  |  [D] toggle debug";
+                string hudText = $"FPS: {fps:F0}  |  Bodies: {world.Bodies.Count}  |  Sleeping: {sleepingCount}  |  A/D move  Space jump  [F1] toggle debug";
                 SizeF textSize = g.MeasureString(hudText, SystemFonts.DefaultFont);
                 float hudX = this.ClientSize.Width - textSize.Width - 6f;
                 float hudY = this.ClientSize.Height - textSize.Height - 6f;

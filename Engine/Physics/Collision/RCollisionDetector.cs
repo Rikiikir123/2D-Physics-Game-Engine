@@ -3,7 +3,7 @@ using Engine.Math;
 namespace Engine.Physics.Collision
 {
     // narrow-phase: figures out if two shapes overlap and, if so, how (normal + penetration)
-    public static class CollisionDetector
+    public static class RCollisionDetector
     {
         public static bool TryDetectAABBvsAABB(RAABB a, RAABB b, out RCollisionManifold manifold)
         {
