@@ -8,7 +8,7 @@ namespace Engine.Physics.World
     public class RPhysicsWorld
     {
         public List<RRigidBody> Bodies = new();
-        public List<RAABB> StaticColliders = new();
+        public List<RStaticCollider> StaticColliders = new();
         public List<RAABB> BoundaryColliders = new();
 
         // how many times to re-run collision resolution per step.
@@ -48,7 +48,7 @@ namespace Engine.Physics.World
                 {
                     foreach (var collider in StaticColliders)
                     {
-                        if (body.Bounds.Intersects(collider))
+                        if (body.Bounds.Intersects(collider.Bounds))
                         {
                             // only actually wake a sleeping body here - a body already awake and
                             // resting in continuous contact shouldn't have its sleep timer reset every step

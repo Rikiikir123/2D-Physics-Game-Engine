@@ -7,7 +7,24 @@ namespace Engine.Physics.Collision
 	public class RCollisionResolver
 	{
 
-        // handles collision between a body and a static platform/boundary
+        // handles collision between a body and a static platform (may be one-way)
+        public static void ResolveStaticCollision(RRigidBody body, RStaticCollider platform)
+        {
+            if (body.IsStatic)
+            {
+                return;
+            }
+
+            // one-way platforms only block when falling onto them from above
+            if (platform.IsOneWay && ShouldPassThroughOneWay(body, platform.Bounds))
+            {
+                return;
+            }
+
+            ResolveAgainstAABB(body, platform.Bounds);
+        }
+
+        // handles collision between a body and a solid boundary (never one-way)
         public static void ResolveStaticCollision(RRigidBody body, RAABB platform)
         {
             if (body.IsStatic)
@@ -15,6 +32,30 @@ namespace Engine.Physics.Collision
                 return;
             }
 
+            ResolveAgainstAABB(body, platform);
+        }
+
+        // pass through while jumping up, or when the feet are clearly below the top surface
+        // (coming from underneath). only land when falling with feet near the platform top.
+        private static bool ShouldPassThroughOneWay(RRigidBody body, RAABB platform)
+        {
+            // moving upward - jump through
+            if (body.Velocity.Y < 0f)
+            {
+                return true;
+            }
+
+            // feet clearly below the top means we entered from underneath, not landed on top
+            if (body.Bounds.Bottom > platform.Top + 8f)
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        private static void ResolveAgainstAABB(RRigidBody body, RAABB platform)
+        {
             if (body.Shape is RRectangleShape)
             {
                 if (RCollisionDetector.TryDetectAABBvsAABB(body.Bounds, platform, out RCollisionManifold manifold))
