@@ -51,17 +51,15 @@ namespace EngineRunner
 
             world = new RPhysicsWorld();
 
-            // playable level: a ground floor plus a few platforms at increasing height so
-            // reaching the top row requires jumping between them.
-            RAABB ground = new RAABB(0f, 800f, 400f, 450f);
-            RAABB platformLow = new RAABB(80f, 280f, 320f, 340f);
-            RAABB platformMid = new RAABB(320f, 520f, 240f, 260f);
-            RAABB platformHigh = new RAABB(560f, 760f, 160f, 180f);
+            // playable level: solid ground + platforms, plus one-way platforms you can jump up through
+            world.StaticColliders.Add(new RStaticCollider(new RAABB(0f, 800f, 400f, 450f)));           // ground
+            world.StaticColliders.Add(new RStaticCollider(new RAABB(80f, 280f, 320f, 340f)));          // solid low
+            world.StaticColliders.Add(new RStaticCollider(new RAABB(320f, 520f, 240f, 260f)));         // solid mid
+            world.StaticColliders.Add(new RStaticCollider(new RAABB(560f, 760f, 160f, 180f)));         // solid high
 
-            world.StaticColliders.Add(ground);
-            world.StaticColliders.Add(platformLow);
-            world.StaticColliders.Add(platformMid);
-            world.StaticColliders.Add(platformHigh);
+            // one-way: jump up through from below, then stand on top
+            world.StaticColliders.Add(new RStaticCollider(new RAABB(200f, 360f, 280f, 292f), true));
+            world.StaticColliders.Add(new RStaticCollider(new RAABB(440f, 620f, 200f, 212f), true));
 
             // the player: a rectangle body that never sleeps, so it always responds to input
             player = new RRigidBody(
@@ -119,7 +117,8 @@ namespace EngineRunner
 
                 bool moveLeft = heldKeys.Contains(Keys.A) || heldKeys.Contains(Keys.Left);
                 bool moveRight = heldKeys.Contains(Keys.D) || heldKeys.Contains(Keys.Right);
-                playerController.ApplyInput(moveLeft, moveRight, jumpPressed);
+                bool jumpHeld = heldKeys.Contains(Keys.Space) || heldKeys.Contains(Keys.W) || heldKeys.Contains(Keys.Up);
+                playerController.ApplyInput(moveLeft, moveRight, jumpPressed, jumpHeld, FixedDeltaTime);
                 jumpPressed = false;
 
                 world.Step(FixedDeltaTime);    // runs one fixed physics step
@@ -162,16 +161,27 @@ namespace EngineRunner
 
             Graphics g = e.Graphics;
 
-            // draw static colliders
-            foreach (RAABB collider in world.StaticColliders)
+            // draw static colliders - one-way platforms use a lighter fill so they're obvious in demos
+            foreach (RStaticCollider collider in world.StaticColliders)
             {
+                RAABB bounds = collider.Bounds;
+                Brush fill = collider.IsOneWay ? Brushes.SkyBlue : Brushes.SteelBlue;
                 g.FillRectangle(
-                    Brushes.SteelBlue,
-                    collider.Left,
-                    collider.Top,
-                    collider.Right - collider.Left,
-                    collider.Bottom - collider.Top
+                    fill,
+                    bounds.Left,
+                    bounds.Top,
+                    bounds.Right - bounds.Left,
+                    bounds.Bottom - bounds.Top
                 );
+
+                if (showDebug && collider.IsOneWay)
+                {
+                    // dashed-style top edge to mark the solid landing surface
+                    using (Pen dashPen = new Pen(Color.DodgerBlue, 2f) { DashStyle = System.Drawing.Drawing2D.DashStyle.Dash })
+                    {
+                        g.DrawLine(dashPen, bounds.Left, bounds.Top, bounds.Right, bounds.Top);
+                    }
+                }
             }
 
             // draw each body
@@ -287,7 +297,7 @@ namespace EngineRunner
                     if (body.IsSleeping) sleepingCount++;
                 }
 
-                string hudText = $"FPS: {fps:F0}  |  Bodies: {world.Bodies.Count}  |  Sleeping: {sleepingCount}  |  A/D move  Space jump  [F1] toggle debug";
+                string hudText = $"FPS: {fps:F0}  |  Bodies: {world.Bodies.Count}  |  Sleeping: {sleepingCount}  |  coyote/buffer on  |  A/D move  Space jump  [F1] debug";
                 SizeF textSize = g.MeasureString(hudText, SystemFonts.DefaultFont);
                 float hudX = this.ClientSize.Width - textSize.Width - 6f;
                 float hudY = this.ClientSize.Height - textSize.Height - 6f;
