@@ -21,6 +21,14 @@ namespace Engine.Physics.World
         // seconds a body must stay below the threshold, with no contact, before it sleeps
         public float SleepTimeRequired = 0.4f;
 
+        // when true, body-vs-body candidates come from the spatial hash; when false, every pair is tested (O(n²))
+        public bool UseBroadPhase = true;
+        // how many body-body pairs were considered last step (for evaluation HUD)
+        public int LastCandidatePairCount { get; private set; }
+
+        private readonly RSpatialHash spatialHash = new(64f);
+        private readonly List<(int, int)> candidatePairs = new();
+
 
         // one physics step
         public void Step(float deltaTime)
@@ -68,23 +76,7 @@ namespace Engine.Physics.World
                     }
                 }
 
-                for (int i = 0; i < Bodies.Count; i++)
-                {
-                    for (int j = i + 1; j < Bodies.Count; j++)
-                    {
-                        var a = Bodies[i];
-                        var b = Bodies[j];
-
-                        if (a.Bounds.Intersects(b.Bounds))
-                        {
-                            if (a.IsSleeping) a.Wake();
-                            if (b.IsSleeping) b.Wake();
-                            a.HadContact = true;
-                            b.HadContact = true;
-                            RCollisionResolver.ResolveDynamicCollision(a, b);
-                        }
-                    }
-                }
+                ResolveBodyVsBodyPairs();
             }
 
             // sleeping is based purely on how slow a body is moving, not on whether it's in contact -
@@ -94,6 +86,49 @@ namespace Engine.Physics.World
                 if (!body.IsStatic)
                 {
                     body.TrySleep(deltaTime, SleepVelocityThreshold, SleepTimeRequired);
+                }
+            }
+        }
+
+        // gathers candidate pairs (spatial hash or brute force), then runs narrow-phase + resolve
+        private void ResolveBodyVsBodyPairs()
+        {
+            if (UseBroadPhase)
+            {
+                spatialHash.Clear();
+                for (int i = 0; i < Bodies.Count; i++)
+                {
+                    spatialHash.Insert(i, Bodies[i].Bounds);
+                }
+                spatialHash.GetCandidatePairs(candidatePairs);
+            }
+            else
+            {
+                // brute-force baseline for A/B evaluation in the thesis
+                candidatePairs.Clear();
+                for (int i = 0; i < Bodies.Count; i++)
+                {
+                    for (int j = i + 1; j < Bodies.Count; j++)
+                    {
+                        candidatePairs.Add((i, j));
+                    }
+                }
+            }
+
+            LastCandidatePairCount = candidatePairs.Count;
+
+            foreach (var (i, j) in candidatePairs)
+            {
+                var a = Bodies[i];
+                var b = Bodies[j];
+
+                if (a.Bounds.Intersects(b.Bounds))
+                {
+                    if (a.IsSleeping) a.Wake();
+                    if (b.IsSleeping) b.Wake();
+                    a.HadContact = true;
+                    b.HadContact = true;
+                    RCollisionResolver.ResolveDynamicCollision(a, b);
                 }
             }
         }

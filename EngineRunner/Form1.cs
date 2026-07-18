@@ -16,6 +16,7 @@ namespace EngineRunner
     public partial class Form1 : Form
     {
         private const float FixedDeltaTime = 1f / 120f; // 120 physics steps/sec
+        private const int StressBodyCount = 80;
         private float accumulator = 0f;
 
         private System.Windows.Forms.Timer timer;
@@ -25,11 +26,13 @@ namespace EngineRunner
         private float clientWidth;
 
         private RPhysicsWorld world;
-        private RRigidBody player;
-        private RPlayerController playerController;
+        private RRigidBody? player;
+        private RPlayerController? playerController;
 
         // toggle with F1 during runtime to hide debug info for clean presentation
         private bool showDebug = true;
+        // F2 switches between the playable platformer and a crowded evaluation scene
+        private bool stressScene = false;
 
         // held movement keys are tracked continuously, jump is consumed once per press
         private readonly HashSet<Keys> heldKeys = new();
@@ -50,6 +53,23 @@ namespace EngineRunner
             this.KeyPreview = true;
 
             world = new RPhysicsWorld();
+            LoadPlatformerScene();
+
+            stopwatch = new Stopwatch();
+            stopwatch.Start();
+
+            timer = new System.Windows.Forms.Timer();
+            timer.Interval = 16; // ~60 FPS
+            // run gameloop every timer tick
+            timer.Tick += GameLoop;
+            timer.Start();
+        }
+
+        private void LoadPlatformerScene()
+        {
+            world.Bodies.Clear();
+            world.StaticColliders.Clear();
+            stressScene = false;
 
             // playable level: solid ground + platforms, plus one-way platforms you can jump up through
             world.StaticColliders.Add(new RStaticCollider(new RAABB(0f, 800f, 400f, 450f)));           // ground
@@ -82,15 +102,39 @@ namespace EngineRunner
                 false,
                 true);
             world.Bodies.Add(prop);
+        }
 
-            stopwatch = new Stopwatch();
-            stopwatch.Start();
+        // crowded scene for measuring broad-phase candidate counts vs brute force
+        private void LoadStressScene()
+        {
+            world.Bodies.Clear();
+            world.StaticColliders.Clear();
+            stressScene = true;
+            player = null;
+            playerController = null;
 
-            timer = new System.Windows.Forms.Timer();
-            timer.Interval = 16; // ~60 FPS
-            // run gameloop every timer tick
-            timer.Tick += GameLoop;
-            timer.Start();
+            world.StaticColliders.Add(new RStaticCollider(new RAABB(0f, 800f, 420f, 480f)));
+
+            Random rng = new Random(42);
+            for (int i = 0; i < StressBodyCount; i++)
+            {
+                float x = 40f + (float)rng.NextDouble() * 700f;
+                float y = 20f + (float)rng.NextDouble() * 300f;
+                bool useCircle = i % 2 == 0;
+
+                RShape shape = useCircle
+                    ? new RCircleShape(10f + (float)rng.NextDouble() * 10f)
+                    : new RRectangleShape(16f + (float)rng.NextDouble() * 14f, 16f + (float)rng.NextDouble() * 14f);
+
+                RRigidBody body = new RRigidBody(
+                    new RVector2(x, y),
+                    shape,
+                    3f + (float)rng.NextDouble() * 5f,
+                    false,
+                    true);
+                body.Restitution = 0.3f;
+                world.Bodies.Add(body);
+            }
         }
 
         private void GameLoop(object? sender, EventArgs e)
@@ -115,10 +159,13 @@ namespace EngineRunner
             {
                 world.UpdateBounds(clientHeight, clientWidth);
 
-                bool moveLeft = heldKeys.Contains(Keys.A) || heldKeys.Contains(Keys.Left);
-                bool moveRight = heldKeys.Contains(Keys.D) || heldKeys.Contains(Keys.Right);
-                bool jumpHeld = heldKeys.Contains(Keys.Space) || heldKeys.Contains(Keys.W) || heldKeys.Contains(Keys.Up);
-                playerController.ApplyInput(moveLeft, moveRight, jumpPressed, jumpHeld, FixedDeltaTime);
+                if (playerController != null)
+                {
+                    bool moveLeft = heldKeys.Contains(Keys.A) || heldKeys.Contains(Keys.Left);
+                    bool moveRight = heldKeys.Contains(Keys.D) || heldKeys.Contains(Keys.Right);
+                    bool jumpHeld = heldKeys.Contains(Keys.Space) || heldKeys.Contains(Keys.W) || heldKeys.Contains(Keys.Up);
+                    playerController.ApplyInput(moveLeft, moveRight, jumpPressed, jumpHeld, FixedDeltaTime);
+                }
                 jumpPressed = false;
 
                 world.Step(FixedDeltaTime);    // runs one fixed physics step
@@ -137,6 +184,27 @@ namespace EngineRunner
             if (e.KeyCode == Keys.F1)
             {
                 showDebug = !showDebug;
+                return;
+            }
+
+            // F2 swaps platformer demo <-> evaluation stress scene
+            if (e.KeyCode == Keys.F2)
+            {
+                if (stressScene)
+                {
+                    LoadPlatformerScene();
+                }
+                else
+                {
+                    LoadStressScene();
+                }
+                return;
+            }
+
+            // F3 toggles spatial-hash broad-phase for A/B comparison
+            if (e.KeyCode == Keys.F3)
+            {
+                world.UseBroadPhase = !world.UseBroadPhase;
                 return;
             }
 
@@ -188,7 +256,7 @@ namespace EngineRunner
             foreach (RRigidBody body in world.Bodies)
             {
                 RVector2 center;
-                bool isPlayer = body == player;
+                bool isPlayer = player != null && body == player;
 
                 if (body.Shape is RCircleShape circle)
                 {
@@ -261,7 +329,7 @@ namespace EngineRunner
                     continue;
                 }
 
-                if (showDebug)
+                if (showDebug && !stressScene)
                 {
                     // velocity vector from center, scaled down to be readable
                     const float velocityScale = 0.08f;
@@ -289,7 +357,7 @@ namespace EngineRunner
 
             if (showDebug)
             {
-                // FPS counter - bottom right so it stays readable on a light background
+                // FPS + evaluation metrics - bottom right so it stays readable on a light background
                 float fps = lastDeltaTime > 0f ? 1f / lastDeltaTime : 0f;
                 int sleepingCount = 0;
                 foreach (var body in world.Bodies)
@@ -297,9 +365,12 @@ namespace EngineRunner
                     if (body.IsSleeping) sleepingCount++;
                 }
 
-                string hudText = $"FPS: {fps:F0}  |  Bodies: {world.Bodies.Count}  |  Sleeping: {sleepingCount}  |  coyote/buffer on  |  A/D move  Space jump  [F1] debug";
+                string broadPhaseLabel = world.UseBroadPhase ? "hash" : "brute";
+                string sceneLabel = stressScene ? "stress" : "platformer";
+                string hudText =
+                    $"FPS: {fps:F0}  |  Bodies: {world.Bodies.Count}  |  Sleeping: {sleepingCount}  |  Pairs: {world.LastCandidatePairCount}  |  BP: {broadPhaseLabel}  |  {sceneLabel}  |  [F2] scene  [F3] broad-phase  [F1] debug";
                 SizeF textSize = g.MeasureString(hudText, SystemFonts.DefaultFont);
-                float hudX = this.ClientSize.Width - textSize.Width - 6f;
+                float hudX = System.Math.Max(6f, this.ClientSize.Width - textSize.Width - 6f);
                 float hudY = this.ClientSize.Height - textSize.Height - 6f;
                 g.DrawString(hudText, SystemFonts.DefaultFont, Brushes.Black, hudX, hudY);
             }
