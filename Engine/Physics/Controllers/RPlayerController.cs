@@ -8,7 +8,8 @@ namespace Engine.Physics.Controllers
     {
         public RRigidBody Body;
 
-        public float MoveSpeed = 220f;   // px/s horizontal
+        public float MoveSpeed = 220f;   // px/s horizontal while grounded
+        public float AirMoveSpeed = 200f; // px/s horizontal while airborne (slightly less crisp control)
         public float JumpSpeed = 380f;   // px/s upward (screen Y-down, so this becomes negative Y)
 
         // grace period after leaving a ledge where a jump is still allowed
@@ -36,16 +37,18 @@ namespace Engine.Physics.Controllers
         {
             Body.Wake();
 
-            // direct horizontal velocity - standard platformer approach, no acceleration/friction feel
+            // direct horizontal velocity - grounded and airborne both zero X when no input,
+            // so walking off a ledge no longer keeps full run speed as "shove" momentum
+            float horizontalSpeed = Body.IsGrounded ? MoveSpeed : AirMoveSpeed;
             if (moveLeft)
             {
-                Body.Velocity.X = -MoveSpeed;
+                Body.Velocity.X = -horizontalSpeed;
             }
             else if (moveRight)
             {
-                Body.Velocity.X = MoveSpeed;
+                Body.Velocity.X = horizontalSpeed;
             }
-            else if (Body.IsGrounded)
+            else
             {
                 Body.Velocity.X = 0f;
             }
