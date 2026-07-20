@@ -3,12 +3,16 @@ using Engine.Math;
 namespace Engine.Physics
 {
     // static platform geometry with optional one-way behavior and optional motion.
-    // one-way platforms are solid when landing from above, but allow jumping up through them.
     // Velocity != 0 makes the platform a mover; PathMin/PathMax are used by the demo to reverse direction.
+    // IsTrigger volumes detect overlap only (no push/impulse) and drive enter/stay/exit events.
     public class RStaticCollider
     {
         public RAABB Bounds;
         public bool IsOneWay;
+        public bool IsTrigger;
+        public bool Enabled = true;
+        // optional gameplay label (e.g. "coin", "hazard") used by the demo / game layer
+        public string Tag = "";
         public RVector2 Velocity;
 
         // path endpoints for ping-pong movers (same units as Bounds). unused when both are 0.
@@ -19,6 +23,8 @@ namespace Engine.Physics
         {
             Bounds = bounds;
             IsOneWay = isOneWay;
+            IsTrigger = false;
+            Enabled = true;
             Velocity = RVector2.Zero;
             PathMin = 0f;
             PathMax = 0f;

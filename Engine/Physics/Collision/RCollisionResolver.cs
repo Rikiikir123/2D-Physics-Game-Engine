@@ -15,6 +15,12 @@ namespace Engine.Physics.Collision
                 return;
             }
 
+            // triggers are sensors only - world raises enter/stay/exit, no solid resolve
+            if (platform.IsTrigger || !platform.Enabled)
+            {
+                return;
+            }
+
             // one-way platforms only block when falling onto them from above
             if (platform.IsOneWay && ShouldPassThroughOneWay(body, platform.Bounds))
             {

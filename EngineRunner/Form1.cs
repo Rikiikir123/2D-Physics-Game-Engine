@@ -7,6 +7,7 @@ using Engine.Math;
 using Engine.Physics;
 using Engine.Physics.Bodies;
 using Engine.Physics.Controllers;
+using Engine.Physics.Collision;
 using Engine.Physics.World;
 using Engine.Physics.Shapes;
 using static Engine.Physics.Shapes.RShape;
@@ -28,6 +29,9 @@ namespace EngineRunner
         private RPhysicsWorld world;
         private RRigidBody? player;
         private RPlayerController? playerController;
+        private RVector2 playerSpawn = new RVector2(50f, 340f);
+
+        private int score = 0;
 
         // toggle with F1 during runtime to hide debug info for clean presentation
         private bool showDebug = true;
@@ -45,6 +49,10 @@ namespace EngineRunner
         private float lastTime = 0f;
         private float lastDeltaTime = 0.016f;
 
+        // semi-transparent brushes for trigger volumes
+        private readonly Brush coinBrush = new SolidBrush(Color.FromArgb(160, 255, 215, 0));
+        private readonly Brush hazardBrush = new SolidBrush(Color.FromArgb(140, 220, 60, 60));
+
         public Form1()
         {
             // initializes the form
@@ -56,6 +64,7 @@ namespace EngineRunner
             this.KeyPreview = true;
 
             world = new RPhysicsWorld();
+            world.OnStaticContact += OnStaticContact;
             LoadPlatformerScene();
 
             stopwatch = new Stopwatch();
@@ -72,7 +81,9 @@ namespace EngineRunner
         {
             world.Bodies.Clear();
             world.StaticColliders.Clear();
+            world.ClearTriggerContactHistory();
             stressScene = false;
+            score = 0;
 
             // playable level: solid ground + platforms, plus one-way platforms you can jump up through
             world.StaticColliders.Add(new RStaticCollider(new RAABB(0f, 800f, 400f, 450f)));           // ground
@@ -98,9 +109,27 @@ namespace EngineRunner
             verticalMover.PathMax = 360f;
             world.StaticColliders.Add(verticalMover);
 
+            // collectible trigger - walk through, score once on Enter
+            RStaticCollider coin = new RStaticCollider(new RAABB(350f, 382f, 200f, 232f));
+            coin.IsTrigger = true;
+            coin.Tag = "coin";
+            world.StaticColliders.Add(coin);
+
+            RStaticCollider coin2 = new RStaticCollider(new RAABB(620f, 652f, 120f, 152f));
+            coin2.IsTrigger = true;
+            coin2.Tag = "coin";
+            world.StaticColliders.Add(coin2);
+
+            // hazard trigger - walk in and respawn at start
+            RStaticCollider hazard = new RStaticCollider(new RAABB(280f, 380f, 380f, 400f));
+            hazard.IsTrigger = true;
+            hazard.Tag = "hazard";
+            world.StaticColliders.Add(hazard);
+
             // the player: a rectangle body that never sleeps, so it always responds to input
+            playerSpawn = new RVector2(50f, 340f);
             player = new RRigidBody(
-                new RVector2(50f, 340f),
+                playerSpawn,
                 new RRectangleShape(30f, 50f),
                 10f,
                 false,
@@ -126,6 +155,7 @@ namespace EngineRunner
         {
             world.Bodies.Clear();
             world.StaticColliders.Clear();
+            world.ClearTriggerContactHistory();
             stressScene = true;
             player = null;
             playerController = null;
@@ -151,6 +181,27 @@ namespace EngineRunner
                     true);
                 body.Restitution = 0.3f;
                 world.Bodies.Add(body);
+            }
+        }
+
+        // gameplay reactions for trigger enter/stay/exit - engine only reports the contact
+        private void OnStaticContact(RContactEvent e)
+        {
+            if (e.Phase != RContactPhase.Enter)
+            {
+                return;
+            }
+
+            if (e.Collider.Tag == "coin")
+            {
+                e.Collider.Enabled = false;
+                score++;
+            }
+            else if (e.Collider.Tag == "hazard" && player != null && e.Body == player)
+            {
+                player.Position = playerSpawn;
+                player.Velocity = RVector2.Zero;
+                player.PlatformVelocity = RVector2.Zero;
             }
         }
 
@@ -309,13 +360,33 @@ namespace EngineRunner
 
             Graphics g = e.Graphics;
 
-            // draw static colliders - movers teal, one-way sky blue, solid steel blue
+            // draw static colliders - triggers, movers, one-way, solid each get a distinct look
             foreach (RStaticCollider collider in world.StaticColliders)
             {
+                if (!collider.Enabled)
+                {
+                    continue;
+                }
+
                 RAABB bounds = collider.Bounds;
-                Brush fill = collider.IsMoving
-                    ? Brushes.Teal
-                    : (collider.IsOneWay ? Brushes.SkyBlue : Brushes.SteelBlue);
+                Brush fill;
+                if (collider.IsTrigger)
+                {
+                    fill = collider.Tag == "hazard" ? hazardBrush : coinBrush;
+                }
+                else if (collider.IsMoving)
+                {
+                    fill = Brushes.Teal;
+                }
+                else if (collider.IsOneWay)
+                {
+                    fill = Brushes.SkyBlue;
+                }
+                else
+                {
+                    fill = Brushes.SteelBlue;
+                }
+
                 g.FillRectangle(
                     fill,
                     bounds.Left,
@@ -437,6 +508,12 @@ namespace EngineRunner
                 }
             }
 
+            // score is always visible in the platformer scene
+            if (!stressScene)
+            {
+                g.DrawString($"Score: {score}", SystemFonts.DefaultFont, Brushes.Black, 8f, 8f);
+            }
+
             if (showDebug)
             {
                 // FPS + evaluation metrics - bottom right so it stays readable on a light background
@@ -451,7 +528,7 @@ namespace EngineRunner
                 string sceneLabel = stressScene ? "stress" : "platformer";
                 string pauseLabel = physicsPaused ? "PAUSED" : "running";
                 string hudText =
-                    $"FPS: {fps:F0}  |  Bodies: {world.Bodies.Count}  |  Sleeping: {sleepingCount}  |  Pairs: {world.LastCandidatePairCount}  |  BP: {broadPhaseLabel}  |  {sceneLabel}  |  {pauseLabel}  |  teal=mover  |  [P] pause  [.] step  [F2] scene  [F3] BP  [F1] debug";
+                    $"FPS: {fps:F0}  |  Bodies: {world.Bodies.Count}  |  Sleeping: {sleepingCount}  |  Pairs: {world.LastCandidatePairCount}  |  BP: {broadPhaseLabel}  |  {sceneLabel}  |  {pauseLabel}  |  yellow=coin  red=hazard  teal=mover  |  [P] pause  [.] step  [F2] scene  [F3] BP  [F1] debug";
                 SizeF textSize = g.MeasureString(hudText, SystemFonts.DefaultFont);
                 float hudX = System.Math.Max(6f, this.ClientSize.Width - textSize.Width - 6f);
                 float hudY = this.ClientSize.Height - textSize.Height - 6f;
