@@ -33,6 +33,9 @@ namespace EngineRunner
         private bool showDebug = true;
         // F2 switches between the playable platformer and a crowded evaluation scene
         private bool stressScene = false;
+        // P pauses physics; while paused, . or N advances exactly one fixed step
+        private bool physicsPaused = false;
+        private bool stepOnce = false;
 
         // held movement keys are tracked continuously, jump is consumed once per press
         private readonly HashSet<Keys> heldKeys = new();
@@ -155,25 +158,45 @@ namespace EngineRunner
             clientHeight = this.ClientSize.Height;
             clientWidth = this.ClientSize.Width;
 
-            while (accumulator >= FixedDeltaTime)
+            if (physicsPaused)
             {
-                world.UpdateBounds(clientHeight, clientWidth);
+                // discard real-time accumulation so unpausing doesn't catch up in a burst
+                accumulator = 0f;
 
-                if (playerController != null)
+                if (stepOnce)
                 {
-                    bool moveLeft = heldKeys.Contains(Keys.A) || heldKeys.Contains(Keys.Left);
-                    bool moveRight = heldKeys.Contains(Keys.D) || heldKeys.Contains(Keys.Right);
-                    bool jumpHeld = heldKeys.Contains(Keys.Space) || heldKeys.Contains(Keys.W) || heldKeys.Contains(Keys.Up);
-                    playerController.ApplyInput(moveLeft, moveRight, jumpPressed, jumpHeld, FixedDeltaTime);
+                    stepOnce = false;
+                    RunPhysicsStep();
                 }
-                jumpPressed = false;
-
-                world.Step(FixedDeltaTime);    // runs one fixed physics step
-                accumulator -= FixedDeltaTime;
+            }
+            else
+            {
+                while (accumulator >= FixedDeltaTime)
+                {
+                    RunPhysicsStep();
+                    accumulator -= FixedDeltaTime;
+                }
             }
 
             // repaint
             Invalidate();
+        }
+
+        // one fixed physics frame: bounds, player input, then world step
+        private void RunPhysicsStep()
+        {
+            world.UpdateBounds(clientHeight, clientWidth);
+
+            if (playerController != null)
+            {
+                bool moveLeft = heldKeys.Contains(Keys.A) || heldKeys.Contains(Keys.Left);
+                bool moveRight = heldKeys.Contains(Keys.D) || heldKeys.Contains(Keys.Right);
+                bool jumpHeld = heldKeys.Contains(Keys.Space) || heldKeys.Contains(Keys.W) || heldKeys.Contains(Keys.Up);
+                playerController.ApplyInput(moveLeft, moveRight, jumpPressed, jumpHeld, FixedDeltaTime);
+            }
+            jumpPressed = false;
+
+            world.Step(FixedDeltaTime);
         }
 
         protected override void OnKeyDown(KeyEventArgs e)
@@ -205,6 +228,21 @@ namespace EngineRunner
             if (e.KeyCode == Keys.F3)
             {
                 world.UseBroadPhase = !world.UseBroadPhase;
+                return;
+            }
+
+            // P pauses / unpauses the simulation
+            if (e.KeyCode == Keys.P)
+            {
+                physicsPaused = !physicsPaused;
+                stepOnce = false;
+                return;
+            }
+
+            // . or N while paused advances exactly one physics frame
+            if (physicsPaused && (e.KeyCode == Keys.OemPeriod || e.KeyCode == Keys.N))
+            {
+                stepOnce = true;
                 return;
             }
 
@@ -367,8 +405,9 @@ namespace EngineRunner
 
                 string broadPhaseLabel = world.UseBroadPhase ? "hash" : "brute";
                 string sceneLabel = stressScene ? "stress" : "platformer";
+                string pauseLabel = physicsPaused ? "PAUSED" : "running";
                 string hudText =
-                    $"FPS: {fps:F0}  |  Bodies: {world.Bodies.Count}  |  Sleeping: {sleepingCount}  |  Pairs: {world.LastCandidatePairCount}  |  BP: {broadPhaseLabel}  |  {sceneLabel}  |  [F2] scene  [F3] broad-phase  [F1] debug";
+                    $"FPS: {fps:F0}  |  Bodies: {world.Bodies.Count}  |  Sleeping: {sleepingCount}  |  Pairs: {world.LastCandidatePairCount}  |  BP: {broadPhaseLabel}  |  {sceneLabel}  |  {pauseLabel}  |  [P] pause  [.] step  [F2] scene  [F3] BP  [F1] debug";
                 SizeF textSize = g.MeasureString(hudText, SystemFonts.DefaultFont);
                 float hudX = System.Math.Max(6f, this.ClientSize.Width - textSize.Width - 6f);
                 float hudY = this.ClientSize.Height - textSize.Height - 6f;
