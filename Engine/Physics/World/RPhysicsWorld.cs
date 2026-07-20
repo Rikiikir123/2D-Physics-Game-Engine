@@ -2,6 +2,7 @@ using Engine.Physics;
 using System;
 using Engine.Physics.Bodies;
 using Engine.Physics.Collision;
+using Engine.Math;
 
 namespace Engine.Physics.World
 {
@@ -33,11 +34,30 @@ namespace Engine.Physics.World
         // one physics step
         public void Step(float deltaTime)
         {
+            // carry passengers using last step's platform velocity so they don't slide off movers
+            foreach (var body in Bodies)
+            {
+                if (!body.IsStatic && (body.PlatformVelocity.X != 0f || body.PlatformVelocity.Y != 0f))
+                {
+                    body.Position += body.PlatformVelocity * deltaTime;
+                }
+            }
+
+            // integrate moving platforms
+            foreach (var collider in StaticColliders)
+            {
+                if (collider.IsMoving)
+                {
+                    collider.Translate(collider.Velocity * deltaTime);
+                }
+            }
+
             // reset per-step flags before integration
             foreach (var body in Bodies)
             {
                 body.IsGrounded = false;
                 body.HadContact = false;
+                body.PlatformVelocity = RVector2.Zero;
             }
 
             // integrate velocity and position - sleeping bodies skip this so they stay put

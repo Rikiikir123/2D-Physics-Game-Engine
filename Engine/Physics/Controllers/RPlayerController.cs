@@ -85,7 +85,9 @@ namespace Engine.Physics.Controllers
             // jump if we still have coyote time and a buffered press
             if (coyoteTimer > 0f && jumpBufferTimer > 0f)
             {
-                Body.Velocity.Y = -JumpSpeed;
+                // inherit mover speed so jumping off a fast platform keeps momentum
+                Body.Velocity.Y = -JumpSpeed + Body.PlatformVelocity.Y;
+                Body.Velocity.X += Body.PlatformVelocity.X;
                 coyoteTimer = 0f;
                 jumpBufferTimer = 0f;
                 jumpCutApplied = false;
