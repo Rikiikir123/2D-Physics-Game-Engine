@@ -84,6 +84,20 @@ namespace EngineRunner
             world.StaticColliders.Add(new RStaticCollider(new RAABB(200f, 360f, 280f, 292f), true));
             world.StaticColliders.Add(new RStaticCollider(new RAABB(440f, 620f, 200f, 212f), true));
 
+            // horizontal mover - rides left/right between PathMin and PathMax
+            RStaticCollider horizontalMover = new RStaticCollider(new RAABB(120f, 240f, 300f, 316f));
+            horizontalMover.Velocity = new RVector2(80f, 0f);
+            horizontalMover.PathMin = 80f;
+            horizontalMover.PathMax = 360f;
+            world.StaticColliders.Add(horizontalMover);
+
+            // vertical elevator - rides up/down
+            RStaticCollider verticalMover = new RStaticCollider(new RAABB(480f, 580f, 300f, 316f));
+            verticalMover.Velocity = new RVector2(0f, -60f);
+            verticalMover.PathMin = 180f;
+            verticalMover.PathMax = 360f;
+            world.StaticColliders.Add(verticalMover);
+
             // the player: a rectangle body that never sleeps, so it always responds to input
             player = new RRigidBody(
                 new RVector2(50f, 340f),
@@ -186,6 +200,7 @@ namespace EngineRunner
         private void RunPhysicsStep()
         {
             world.UpdateBounds(clientHeight, clientWidth);
+            UpdateMovingPlatformPaths();
 
             if (playerController != null)
             {
@@ -197,6 +212,33 @@ namespace EngineRunner
             jumpPressed = false;
 
             world.Step(FixedDeltaTime);
+        }
+
+        // reverse movers when they hit their path endpoints (engine stays dumb about paths)
+        private void UpdateMovingPlatformPaths()
+        {
+            foreach (RStaticCollider collider in world.StaticColliders)
+            {
+                if (!collider.IsMoving || collider.PathMin == collider.PathMax)
+                {
+                    continue;
+                }
+
+                if (collider.Velocity.X != 0f)
+                {
+                    if (collider.Bounds.Left < collider.PathMin || collider.Bounds.Right > collider.PathMax)
+                    {
+                        collider.Velocity = new RVector2(-collider.Velocity.X, collider.Velocity.Y);
+                    }
+                }
+                else if (collider.Velocity.Y != 0f)
+                {
+                    if (collider.Bounds.Top < collider.PathMin || collider.Bounds.Bottom > collider.PathMax)
+                    {
+                        collider.Velocity = new RVector2(collider.Velocity.X, -collider.Velocity.Y);
+                    }
+                }
+            }
         }
 
         protected override void OnKeyDown(KeyEventArgs e)
@@ -267,11 +309,13 @@ namespace EngineRunner
 
             Graphics g = e.Graphics;
 
-            // draw static colliders - one-way platforms use a lighter fill so they're obvious in demos
+            // draw static colliders - movers teal, one-way sky blue, solid steel blue
             foreach (RStaticCollider collider in world.StaticColliders)
             {
                 RAABB bounds = collider.Bounds;
-                Brush fill = collider.IsOneWay ? Brushes.SkyBlue : Brushes.SteelBlue;
+                Brush fill = collider.IsMoving
+                    ? Brushes.Teal
+                    : (collider.IsOneWay ? Brushes.SkyBlue : Brushes.SteelBlue);
                 g.FillRectangle(
                     fill,
                     bounds.Left,
@@ -407,7 +451,7 @@ namespace EngineRunner
                 string sceneLabel = stressScene ? "stress" : "platformer";
                 string pauseLabel = physicsPaused ? "PAUSED" : "running";
                 string hudText =
-                    $"FPS: {fps:F0}  |  Bodies: {world.Bodies.Count}  |  Sleeping: {sleepingCount}  |  Pairs: {world.LastCandidatePairCount}  |  BP: {broadPhaseLabel}  |  {sceneLabel}  |  {pauseLabel}  |  [P] pause  [.] step  [F2] scene  [F3] BP  [F1] debug";
+                    $"FPS: {fps:F0}  |  Bodies: {world.Bodies.Count}  |  Sleeping: {sleepingCount}  |  Pairs: {world.LastCandidatePairCount}  |  BP: {broadPhaseLabel}  |  {sceneLabel}  |  {pauseLabel}  |  teal=mover  |  [P] pause  [.] step  [F2] scene  [F3] BP  [F1] debug";
                 SizeF textSize = g.MeasureString(hudText, SystemFonts.DefaultFont);
                 float hudX = System.Math.Max(6f, this.ClientSize.Width - textSize.Width - 6f);
                 float hudY = this.ClientSize.Height - textSize.Height - 6f;

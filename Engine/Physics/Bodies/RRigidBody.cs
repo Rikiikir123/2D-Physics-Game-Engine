@@ -24,6 +24,9 @@ namespace Engine.Physics.Bodies
         public float Restitution;
         public float Friction;
 
+        // velocity of the surface this body stood on last step (zero if airborne or on a still platform)
+        public RVector2 PlatformVelocity;
+
         public RShape Shape;
         
 
@@ -46,6 +49,7 @@ namespace Engine.Physics.Bodies
 
             Restitution = 0.5f;
             Friction = 0.99f;    // used as per-frame horizontal damping when grounded on a static surface
+            PlatformVelocity = RVector2.Zero;
 
 
             // check if we want to use gravity

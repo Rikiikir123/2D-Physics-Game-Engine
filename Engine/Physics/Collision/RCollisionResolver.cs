@@ -7,7 +7,7 @@ namespace Engine.Physics.Collision
 	public class RCollisionResolver
 	{
 
-        // handles collision between a body and a static platform (may be one-way)
+        // handles collision between a body and a static platform (may be one-way / moving)
         public static void ResolveStaticCollision(RRigidBody body, RStaticCollider platform)
         {
             if (body.IsStatic)
@@ -21,10 +21,10 @@ namespace Engine.Physics.Collision
                 return;
             }
 
-            ResolveAgainstAABB(body, platform.Bounds);
+            ResolveAgainstAABB(body, platform.Bounds, platform.Velocity);
         }
 
-        // handles collision between a body and a solid boundary (never one-way)
+        // handles collision between a body and a solid boundary (never one-way, never moving)
         public static void ResolveStaticCollision(RRigidBody body, RAABB platform)
         {
             if (body.IsStatic)
@@ -32,7 +32,7 @@ namespace Engine.Physics.Collision
                 return;
             }
 
-            ResolveAgainstAABB(body, platform);
+            ResolveAgainstAABB(body, platform, RVector2.Zero);
         }
 
         // pass through while jumping up, or when the feet are clearly below the top surface
@@ -54,13 +54,13 @@ namespace Engine.Physics.Collision
             return false;
         }
 
-        private static void ResolveAgainstAABB(RRigidBody body, RAABB platform)
+        private static void ResolveAgainstAABB(RRigidBody body, RAABB platform, RVector2 surfaceVelocity)
         {
             if (body.Shape is RRectangleShape)
             {
                 if (RCollisionDetector.TryDetectAABBvsAABB(body.Bounds, platform, out RCollisionManifold manifold))
                 {
-                    ResolveBodyVsStatic(body, manifold);
+                    ResolveBodyVsStatic(body, manifold, surfaceVelocity);
                 }
             }
             else if (body.Shape is RCircleShape circle)
@@ -69,7 +69,7 @@ namespace Engine.Physics.Collision
 
                 if (RCollisionDetector.TryDetectCircleVsAABB(center, circle.Radius, platform, out RCollisionManifold manifold))
                 {
-                    ResolveBodyVsStatic(body, manifold);
+                    ResolveBodyVsStatic(body, manifold, surfaceVelocity);
                 }
             }
         }
@@ -154,9 +154,9 @@ namespace Engine.Physics.Collision
             ApplyImpulse(a, b, manifold.Normal);
         }
 
-        // static platforms never move, so the full penetration correction goes on the body.
-        // velocity handling matches the old per-shape static resolvers so landing/resting feels the same.
-        private static void ResolveBodyVsStatic(RRigidBody body, RCollisionManifold manifold)
+        // static platforms never move as bodies, so the full penetration correction goes on the body.
+        // surfaceVelocity is the platform's motion (zero for fixed floors/walls).
+        private static void ResolveBodyVsStatic(RRigidBody body, RCollisionManifold manifold, RVector2 surfaceVelocity)
         {
             body.Position -= manifold.Normal * manifold.Penetration;
 
@@ -170,6 +170,7 @@ namespace Engine.Physics.Collision
                     {
                         body.Velocity.Y = 0f;
                         body.IsGrounded = true;
+                        body.PlatformVelocity = surfaceVelocity;
                     }
                     else
                     {
@@ -203,6 +204,7 @@ namespace Engine.Physics.Collision
                 if (manifold.Normal.Y > 0f)
                 {
                     body.IsGrounded = true;
+                    body.PlatformVelocity = surfaceVelocity;
                 }
             }
 
