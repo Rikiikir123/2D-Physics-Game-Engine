@@ -17,7 +17,7 @@ namespace EngineRunner
     public partial class Form1 : Form
     {
         private const float FixedDeltaTime = 1f / 120f; // 120 physics steps/sec
-        private const int StressBodyCount = 80;
+        private const int StressBodyCount = 100;
         private float accumulator = 0f;
 
         private System.Windows.Forms.Timer timer;
@@ -48,6 +48,21 @@ namespace EngineRunner
         // tracked separately from stopwatch so the FPS counter works frame-to-frame
         private float lastTime = 0f;
         private float lastDeltaTime = 0.016f;
+
+        // raw per-frame fps swings too wildly to read, so the HUD shows an average
+        // refreshed a couple times a second instead of every single frame
+        private float fpsAccumTime = 0f;
+        private int fpsAccumFrames = 0;
+        private float displayedFps = 0f;
+
+        // FPS mixes physics cost with GDI+ rendering cost, which at high body counts drowns out
+        // the broad-phase vs brute-force difference we actually care about for evaluation - so we
+        // separately time just world.Step() and report an average per-step cost, unaffected by paint.
+        private readonly Stopwatch physicsStopwatch = new Stopwatch();
+        private float physicsMsWindowTime = 0f;
+        private double physicsMsAccum = 0.0;
+        private int physicsStepsAccum = 0;
+        private float displayedPhysicsStepMs = 0f;
 
         // semi-transparent brushes for trigger volumes
         private readonly Brush coinBrush = new SolidBrush(Color.FromArgb(160, 255, 215, 0));
@@ -208,10 +223,24 @@ namespace EngineRunner
         private void GameLoop(object? sender, EventArgs e)
         {
             float currentTime = stopwatch.ElapsedMilliseconds / 1000f;  // seconds
-            float deltaTime = currentTime - lastTime;
+            float rawDeltaTime = currentTime - lastTime;   // true wall-clock time since last call, unclamped
             lastTime = currentTime;
 
-            // clamp huge spikes (if a frame took too long act like it didn't)
+            // fps must reflect the real wall-clock rate, not the clamped value below - otherwise a
+            // frame that actually took 450ms (~2fps) gets silently counted as if it took 50ms (~20fps)
+            fpsAccumTime += rawDeltaTime;
+            fpsAccumFrames++;
+            if (fpsAccumTime >= 0.5f)
+            {
+                displayedFps = fpsAccumFrames / fpsAccumTime;
+                fpsAccumTime = 0f;
+                fpsAccumFrames = 0;
+            }
+
+            float deltaTime = rawDeltaTime;
+
+            // clamp huge spikes so the physics accumulator doesn't try to catch up in one big burst
+            // (this must stay separate from the fps calculation above)
             if (deltaTime > 0.05f)
             {
                 deltaTime = 0.05f;
@@ -231,20 +260,44 @@ namespace EngineRunner
                 if (stepOnce)
                 {
                     stepOnce = false;
-                    RunPhysicsStep();
+                    TimedPhysicsStep();
                 }
             }
             else
             {
                 while (accumulator >= FixedDeltaTime)
                 {
-                    RunPhysicsStep();
+                    TimedPhysicsStep();
                     accumulator -= FixedDeltaTime;
                 }
             }
 
+            // average physics-only cost over its own half-second window, independent of the fps
+            // window above, so it stays readable and immune to however expensive paint happens to be.
+            // uses rawDeltaTime (not the clamped value) so the window still spans real wall-clock time
+            // even when individual frames run far slower than the 50ms clamp.
+            physicsMsWindowTime += rawDeltaTime;
+            if (physicsMsWindowTime >= 0.5f && physicsStepsAccum > 0)
+            {
+                displayedPhysicsStepMs = (float)(physicsMsAccum / physicsStepsAccum);
+                physicsMsWindowTime = 0f;
+                physicsMsAccum = 0.0;
+                physicsStepsAccum = 0;
+            }
+
             // repaint
             Invalidate();
+        }
+
+        // wraps a single fixed physics step with timing, isolated from rendering cost
+        private void TimedPhysicsStep()
+        {
+            physicsStopwatch.Restart();
+            RunPhysicsStep();
+            physicsStopwatch.Stop();
+
+            physicsMsAccum += physicsStopwatch.Elapsed.TotalMilliseconds;
+            physicsStepsAccum++;
         }
 
         // one fixed physics frame: bounds, player input, then world step
@@ -516,8 +569,12 @@ namespace EngineRunner
 
             if (showDebug)
             {
-                // FPS + evaluation metrics - bottom right so it stays readable on a light background
-                float fps = lastDeltaTime > 0f ? 1f / lastDeltaTime : 0f;
+                // FPS + evaluation metrics, bottom of the screen. Drawn on its own
+                // opaque background bar (rather than plain text over whatever is
+                // underneath, e.g. the steel-blue ground) so it stays readable
+                // regardless of scene contents, and split into two shorter lines
+                // so it isn't cut off by narrower window widths.
+                float fps = displayedFps;
                 int sleepingCount = 0;
                 foreach (var body in world.Bodies)
                 {
@@ -527,12 +584,30 @@ namespace EngineRunner
                 string broadPhaseLabel = world.UseBroadPhase ? "hash" : "brute";
                 string sceneLabel = stressScene ? "stress" : "platformer";
                 string pauseLabel = physicsPaused ? "PAUSED" : "running";
-                string hudText =
-                    $"FPS: {fps:F0}  |  Bodies: {world.Bodies.Count}  |  Sleeping: {sleepingCount}  |  Pairs: {world.LastCandidatePairCount}  |  BP: {broadPhaseLabel}  |  {sceneLabel}  |  {pauseLabel}  |  yellow=coin  red=hazard  teal=mover  |  [P] pause  [.] step  [F2] scene  [F3] BP  [F1] debug";
-                SizeF textSize = g.MeasureString(hudText, SystemFonts.DefaultFont);
-                float hudX = System.Math.Max(6f, this.ClientSize.Width - textSize.Width - 6f);
-                float hudY = this.ClientSize.Height - textSize.Height - 6f;
-                g.DrawString(hudText, SystemFonts.DefaultFont, Brushes.Black, hudX, hudY);
+
+                string hudLine1 =
+                    $"FPS: {fps:F0}  |  StepMs: {displayedPhysicsStepMs:F2}  |  Bodies: {world.Bodies.Count}  |  Sleeping: {sleepingCount}  |  Pairs: {world.LastCandidatePairCount}  |  BP: {broadPhaseLabel}  |  {sceneLabel}  |  {pauseLabel}";
+                string hudLine2 =
+                    "yellow=coin  red=hazard  teal=mover  |  [P] pause  [.] step  [F2] scene  [F3] BP  [F1] debug";
+
+                using (Font hudFont = new Font(SystemFonts.DefaultFont.FontFamily, 10f, FontStyle.Bold))
+                {
+                    SizeF size1 = g.MeasureString(hudLine1, hudFont);
+                    SizeF size2 = g.MeasureString(hudLine2, hudFont);
+                    float boxWidth = System.Math.Max(size1.Width, size2.Width) + 12f;
+                    float boxHeight = size1.Height + size2.Height + 8f;
+
+                    float boxX = System.Math.Max(6f, this.ClientSize.Width - boxWidth - 6f);
+                    float boxY = this.ClientSize.Height - boxHeight - 6f;
+
+                    using (Brush bgBrush = new SolidBrush(Color.FromArgb(200, 15, 15, 15)))
+                    {
+                        g.FillRectangle(bgBrush, boxX, boxY, boxWidth, boxHeight);
+                    }
+
+                    g.DrawString(hudLine1, hudFont, Brushes.White, boxX + 6f, boxY + 4f);
+                    g.DrawString(hudLine2, hudFont, Brushes.White, boxX + 6f, boxY + 4f + size1.Height);
+                }
             }
         }
     }
